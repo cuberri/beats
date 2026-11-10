@@ -62,7 +62,11 @@ instead.
 
 ## Deploy
 
-`dist/` is a static site with relative paths: drop it on GitHub Pages, Netlify or Cloudflare Pages.
+Pushing to `main` builds and publishes the site on GitHub Pages (`.github/workflows/deploy.yml`, which also runs
+the tests first). One-time setup on GitHub: **Settings → Pages → Source: GitHub Actions**, then add the custom domain
+on the same page. Only songs committed to `songs/` end up in the published library.
+
+`dist/` is a static site with relative paths, so it can also go on Netlify or Cloudflare Pages.
 It is an installable PWA (works offline after first visit).
 
 ## Code map
