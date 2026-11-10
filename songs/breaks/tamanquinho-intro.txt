@@ -1,0 +1,11 @@
+title: Tamanquinho intro
+tempo: 100
+swing: 0
+
+[tamanquinho-intro] bars=2
+fundo1: .... .... .... .... | .... .... .... ....
+fundo2: .... .... .... .... | .... .... ...X X.XX
+caixa:  .... .... .... .... | .... .... .... ....
+repi:   X..X X..X .X.X X... | X..X X..X .X.X X...
+
+arrangement: tamanquinho-intro*loop

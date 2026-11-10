@@ -1,0 +1,9 @@
+title: Tamanquinho
+tempo: 100
+swing: 15
+
+[tamanquinho-intro] = breaks/tamanquinho-intro
+
+[tamanquinho-groove] = grooves/tamanquinho-groove
+
+arrangement: tamanquinho-intro, tamanquinho-groove*4
