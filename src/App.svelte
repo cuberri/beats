@@ -6,7 +6,7 @@
   import SaveDialog from './components/SaveDialog.svelte';
   import SectionGrid from './components/SectionGrid.svelte';
   import Transport from './components/Transport.svelte';
-  import { EMPTY_SONG } from './lib/demo';
+  import { EMPTY_SONG } from './lib/newSong';
   import { LIBRARY, baseName, libraryEntries, resolveRef, splitRef } from './lib/library.svelte';
   import { CAN_WRITE, writeSong } from './lib/libraryWrite';
   import { LANGS, i18n, setLang, t, type Lang } from './lib/i18n.svelte';

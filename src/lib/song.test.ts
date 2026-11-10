@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { DEMO_SONG, EMPTY_SONG } from './demo';
+import { EMPTY_SONG } from './newSong';
+import { TEST_SONG } from './testSong';
 import { applyTrackOrder, changeMeter, changeSectionMeter, changeTrackSubdiv, formatSteps, meterOf, ticksPerBeat, trackMeter, moveSection, moveTrack, parse, renameSection, resizeSection, serialize } from './song';
 import { resolveInstrument } from './instruments';
 
 describe('parse', () => {
-  it('parses the demo without issues', () => {
-    const { song, issues } = parse(DEMO_SONG);
+  it('parses the test song without issues', () => {
+    const { song, issues } = parse(TEST_SONG);
     expect(issues).toEqual([]);
-    expect(song.title).toBe('Demo samba');
+    expect(song.title).toBe('Test song');
     expect(song.tempo).toBe(100);
     expect(song.swing).toBe(15);
     expect(song.sections.map((s) => [s.name, s.bars, s.tracks.length])).toEqual([
@@ -26,7 +27,7 @@ describe('parse', () => {
   });
 
   it('round-trips through serialize', () => {
-    for (const src of [DEMO_SONG, EMPTY_SONG]) {
+    for (const src of [TEST_SONG, EMPTY_SONG]) {
       const a = parse(src).song;
       const b = parse(serialize(a));
       expect(b.issues).toEqual([]);
@@ -72,14 +73,14 @@ describe('instruments', () => {
 
 describe('editing', () => {
   it('renames sections and updates the arrangement', () => {
-    const { song } = parse(DEMO_SONG);
+    const { song } = parse(TEST_SONG);
     expect(renameSection(song, 'groove', 'main')).toBe(true);
     expect(song.arrangement.filter((a) => a.section === 'main')).toHaveLength(2);
     expect(renameSection(song, 'main', 'call')).toBe(false);
   });
 
   it('resizes sections', () => {
-    const { song } = parse(DEMO_SONG);
+    const { song } = parse(TEST_SONG);
     resizeSection(song, song.sections[1], 2);
     expect(song.sections[1].tracks.every((t) => t.steps.length === 32)).toBe(true);
   });
@@ -148,7 +149,7 @@ describe('linked sections', () => {
 
 describe('section order', () => {
   it('moves a section and keeps the arrangement', () => {
-    const { song } = parse(DEMO_SONG);
+    const { song } = parse(TEST_SONG);
     const before = serialize(song);
     moveSection(song, 0, 2); // call after break1
     expect(song.sections.map((x) => x.name)).toEqual(['groove', 'break1', 'call']);
@@ -160,7 +161,7 @@ describe('section order', () => {
   });
 
   it('ignores moves past either end', () => {
-    const { song } = parse(DEMO_SONG);
+    const { song } = parse(TEST_SONG);
     moveSection(song, 0, -1);
     moveSection(song, 2, 3);
     expect(song.sections.map((x) => x.name)).toEqual(['call', 'groove', 'break1']);
@@ -169,7 +170,7 @@ describe('section order', () => {
 
 describe('track order', () => {
   it('moves a track', () => {
-    const { song } = parse(DEMO_SONG);
+    const { song } = parse(TEST_SONG);
     const g = song.sections[1];
     moveTrack(g, 4, 0); // repi to the top
     expect(g.tracks.map((t) => t.label).slice(0, 3)).toEqual(['repi', 'fundo1', 'fundo2']);

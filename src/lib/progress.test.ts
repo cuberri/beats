@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { DEMO_SONG } from './demo';
+import { TEST_SONG } from './testSong';
 import type { PlayerState } from './player';
 import { computeProgress, passLabel } from './progress';
 import { parse } from './song';
 
-const song = parse(DEMO_SONG).song; // call, groove*loop, break1 (2 bars), groove*4
+const song = parse(TEST_SONG).song; // call, groove*loop, break1 (2 bars), groove*4
 const base: PlayerState = {
   playing: true,
   mode: 'song',

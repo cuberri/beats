@@ -1,6 +1,7 @@
-export const DEMO_SONG = `# Lines starting with # are comments.
+/** A small song used by the tests only (not part of the app). */
+export const TEST_SONG = `# Lines starting with # are comments.
 # One character = one step (a sixteenth note). Spaces and | are just for reading.
-title: Demo samba
+title: Test song
 tempo: 100
 swing: 15
 
@@ -22,18 +23,4 @@ caixa:    X..X ..X. X.X. XXXX | X... .... .... ....
 repi:     X..X ..X. r.r. ssss | X... .... .... ....
 
 arrangement: call, groove*loop, break1, groove*4
-`;
-
-export const EMPTY_SONG = `title: New song
-tempo: 100
-swing: 0
-
-[groove] bars=1
-fundo1:   .... .... .... ....
-fundo2:   .... .... .... ....
-dobra:    .... .... .... ....
-caixa:    .... .... .... ....
-repi:     .... .... .... ....
-
-arrangement: groove*loop
 `;

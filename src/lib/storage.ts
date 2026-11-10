@@ -1,7 +1,7 @@
 import LZString from 'lz-string';
-import { DEMO_SONG } from './demo';
 import { t } from './i18n.svelte';
 import { LIBRARY } from './library.svelte';
+import { EMPTY_SONG } from './newSong';
 
 const KEY = 'beats.song';
 const ORIGIN_KEY = 'beats.origin';
@@ -40,7 +40,7 @@ export function fromLibrary(path: string): Loaded {
   return { text, origin: { path, text } };
 }
 
-/** Song from the URL (#s=...), the saved song, or the library demo, in that order. */
+/** Song from the URL (#s=...), the saved song, or an empty song, in that order. */
 export function loadInitial(): Loaded {
   const stored = read(KEY);
   let origin: Origin | null = null;
@@ -64,7 +64,7 @@ export function loadInitial(): Loaded {
       return fromLibrary(origin.path);
     return { text: stored, origin };
   }
-  return LIBRARY['demo-samba'] != null ? fromLibrary('demo-samba') : { text: DEMO_SONG, origin: null };
+  return { text: EMPTY_SONG, origin: null };
 }
 
 export function shareLink(text: string): string {
