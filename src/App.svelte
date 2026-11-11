@@ -351,8 +351,12 @@
       {#if CAN_WRITE}
         <button
           onclick={() => saveSong()}
-          disabled={!!origin && !modified}
-          title={origin ? t('app.saveTo', { path: origin.path }) : t('app.saveInto')}>{t('app.save')}</button
+          disabled={!dirty}
+          title={!dirty
+            ? t('app.nothingToSave')
+            : origin
+              ? t('app.saveTo', { path: origin.path })
+              : t('app.saveInto')}>{t('app.save')}</button
         >
         {#if origin}
           <button onclick={() => (saveReq = { kind: 'song' })} title={t('app.saveAsTip')}>{t('app.saveAs')}</button>

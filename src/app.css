@@ -70,8 +70,13 @@ button {
   padding: 6px 10px;
   touch-action: manipulation;
 }
-button:hover {
+button:hover:not(:disabled) {
   border-color: var(--line-strong);
+}
+/* `color: inherit` above hides the browser's own greying, so show disabled buttons explicitly. */
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 button.primary {
   background: var(--accent);
