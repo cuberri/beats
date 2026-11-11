@@ -1,0 +1,8 @@
+title: Caixa 3 4
+tempo: 100
+swing: 0
+
+[groove] bars=1
+caixa: xxXX xxXX xxXX xxXX
+
+arrangement: groove*loop
