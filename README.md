@@ -86,6 +86,8 @@ It is an installable PWA (works offline after first visit).
 
 - `songs/`: whole songs. Subfolders (e.g. `drafts/`, `currently-played/`) only organise them in the Library.
 - `patterns/`: reusable grooves and breaks. The app's **Import…** copies their sections (or only some instruments)
-  into a song; the copy is then independent of the file.
+  into a song, and **⤓ Import lines…** on a section puts a pattern's lines into that section. Either way the copy
+  is independent of the file. **💾 Save as pattern** saves a section into `patterns/`, and the 💾 on a line saves
+  that line alone.
 
 See [songs/README.md](songs/README.md) and [patterns/README.md](patterns/README.md).
