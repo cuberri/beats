@@ -35,6 +35,11 @@
     <li>Touchez une case pour passer d’une frappe de l’instrument à l’autre, puis revenir au silence. Le clic droit vide une case.</li>
     <li><b>M</b> coupe une ligne, <b>S</b> ne joue que les lignes en solo. Les deux s’appliquent à toutes les sections.</li>
     <li>
+      <b>↶</b> et <b>↷</b> en haut annulent et rétablissent vos changements (Ctrl+Z / Ctrl+Maj+Z, ou ⌘Z / ⇧⌘Z sur Mac).
+      Ils couvrent la grille, l’enchaînement, les réglages et l’onglet Texte, jusqu’à ce que vous ouvriez un autre
+      morceau.
+    </li>
+    <li>
       Faites glisser la poignée pointillée à gauche du nom d’un instrument pour monter ou descendre la ligne (ou
       sélectionnez-la et utilisez les flèches du clavier). <b>⇅ Utiliser cet ordre de lignes dans toutes les sections</b>
       range les lignes des autres sections dans le même ordre.
@@ -155,7 +160,9 @@ arrangement: call, groove*loop, break1, groove*4</pre>
     <li>
       <b>💾 Enregistrer</b> écrit le morceau entier dans <code>songs/</code> ; <b>Enregistrer sous…</b> en fait une
       copie sous un autre nom. Sous le titre, vous voyez dans quel fichier le morceau est enregistré, ou
-      <b>● modifié</b> s’il y a des changements non enregistrés.
+      <b>● modifié</b> s’il y a des changements non enregistrés. Cliquez sur <b>● modifié</b> pour voir ce qui a changé
+      (réglages, sections, enchaînement), et sur <b>↺ Revenir à la version enregistrée</b> pour retrouver le fichier ;
+      <b>↶</b> ramène vos changements si vous changez d’avis.
     </li>
     <li>
       L’enregistrement dans le dossier ne fonctionne que sur l’ordinateur qui exécute <code>npm run dev</code>. Sur le
@@ -185,6 +192,10 @@ arrangement: call, groove*loop, break1, groove*4</pre>
   <ul>
     <li>Tap a cell to cycle through the instrument's strokes, then back to silence. Right-click clears a cell.</li>
     <li><b>M</b> mutes a line, <b>S</b> plays only the soloed lines. Both apply to every section.</li>
+    <li>
+      <b>↶</b> and <b>↷</b> at the top undo and redo your changes (Ctrl+Z / Ctrl+Shift+Z, or ⌘Z / ⇧⌘Z on a Mac).
+      They cover the grid, the arrangement, the settings and the Text tab, until you open another song.
+    </li>
     <li>
       Drag the dotted handle left of an instrument name to move the line up or down (or focus it and use the arrow
       keys). <b>⇅ Use this line order in all sections</b> puts the other sections' lines in the same order.
@@ -296,7 +307,9 @@ arrangement: call, groove*loop, break1, groove*4</pre>
     </li>
     <li>
       <b>💾 Save</b> writes the whole song into <code>songs/</code>; <b>Save as…</b> makes a copy under another name. Under
-      the title you see which file the song is saved in, or <b>● modified</b> when there are unsaved changes.
+      the title you see which file the song is saved in, or <b>● modified</b> when there are unsaved changes. Click
+      <b>● modified</b> to see what changed (settings, sections, arrangement), and <b>↺ Revert to saved</b> to go
+      back to the file; <b>↶</b> brings your changes back if you change your mind.
     </li>
     <li>
       Saving into the folder only works on the computer running <code>npm run dev</code>. On the deployed site, the same

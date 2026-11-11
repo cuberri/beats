@@ -606,3 +606,38 @@ export function applyTrackOrder(song: Song, source: Section) {
       .map((x) => x.t);
   }
 }
+
+export interface SongChanges {
+  /** Song settings that differ: 'title', 'tempo', 'swing', 'meter'. */
+  settings: ('title' | 'tempo' | 'swing' | 'meter')[];
+  added: string[];
+  removed: string[];
+  /** Sections present in both whose lines, length or time signature differ. */
+  changed: string[];
+  /** The order of the parts or their repeats differ. */
+  arrangement: boolean;
+  /** Same sections, in another order on the page. */
+  reordered: boolean;
+}
+
+/** What differs between `before` and `after` (sections are matched by name). */
+export function songChanges(before: Song, after: Song): SongChanges {
+  const settings: SongChanges['settings'] = [];
+  if (before.title !== after.title) settings.push('title');
+  if (before.tempo !== after.tempo) settings.push('tempo');
+  if (before.swing !== after.swing) settings.push('swing');
+  if (before.beats !== after.beats || before.subdiv !== after.subdiv) settings.push('meter');
+  const names = (s: Song) => s.sections.map((x) => x.name);
+  const key = (s: Song, sec: Section) =>
+    JSON.stringify([sec.bars, meterOf(s, sec), sec.tracks.map((t) => [t.label, t.subdiv ?? 0, t.steps.join('')])]);
+  const old = new Map(before.sections.map((x) => [x.name, key(before, x)]));
+  const both = names(after).filter((n) => old.has(n));
+  return {
+    settings,
+    added: names(after).filter((n) => !old.has(n)),
+    removed: names(before).filter((n) => !names(after).includes(n)),
+    changed: after.sections.filter((x) => old.has(x.name) && old.get(x.name) !== key(after, x)).map((x) => x.name),
+    arrangement: JSON.stringify(before.arrangement) !== JSON.stringify(after.arrangement),
+    reordered: both.join('\n') !== names(before).filter((n) => both.includes(n)).join('\n'),
+  };
+}

@@ -37,8 +37,10 @@
     uniqueName,
     type Meter,
     type Section,
+    songChanges,
     type Song,
   } from './lib/song';
+  import { History } from './lib/history';
   import { downloadText, fromLibrary, loadInitial, saveLocal, shareLink, type Origin } from './lib/storage';
 
   const initial = loadInitial();
@@ -50,6 +52,47 @@
   const modified = $derived(!!origin && text !== origin.text);
   /** True when replacing the song could lose work. */
   const dirty = $derived(origin ? modified : text !== EMPTY_SONG);
+  /** What differs from the saved file, as lines to show. */
+  const changeList = $derived.by(() => {
+    if (!modified || !origin) return [];
+    const c = songChanges(parse(origin.text).song, song);
+    const out: string[] = [];
+    if (c.settings.length)
+      out.push(t('chg.settings', { list: c.settings.map((k) => t(`chg.s.${k}`)).join(', ') }));
+    if (c.changed.length) out.push(t('chg.changed', { list: c.changed.join(', ') }));
+    if (c.added.length) out.push(t('chg.added', { list: c.added.join(', ') }));
+    if (c.removed.length) out.push(t('chg.removed', { list: c.removed.join(', ') }));
+    if (c.reordered) out.push(t('chg.reordered'));
+    if (c.arrangement) out.push(t('chg.arrangement'));
+    if (!out.length) out.push(t('chg.other'));
+    return out;
+  });
+
+  // Undo/redo: every change of the text is a step, except typing in the Text tab, where quick
+  // keystrokes make one step together.
+  const history = new History(initial.text);
+  let canUndo = $state(false);
+  let canRedo = $state(false);
+  $effect(() => {
+    history.record(text, document.activeElement?.tagName === 'TEXTAREA');
+    canUndo = history.canUndo;
+    canRedo = history.canRedo;
+  });
+  function undo() {
+    const prev = history.undo();
+    if (prev !== null) text = prev;
+  }
+  function redo() {
+    const next = history.redo();
+    if (next !== null) text = next;
+  }
+  let changesPop = $state<HTMLElement>();
+  function revert() {
+    if (!origin) return;
+    text = origin.text;
+    changesPop?.hidePopover();
+    say(t('toast.reverted'));
+  }
   /** Library panel, open on its Songs or Patterns tab. */
   let showLibrary = $state<LibKind | null>(null);
   /** Library file whose sections are being picked for import. */
@@ -154,6 +197,7 @@
 
   function replaceSong(newText: string, newOrigin: Origin | null = null) {
     player.stop();
+    history.reset(newText);
     text = newText;
     origin = newOrigin;
     muted = [];
@@ -305,9 +349,17 @@
 
   onMount(() => {
     const onKey = (e: KeyboardEvent) => {
+      const t = e.target;
+      // Text fields keep their own undo.
+      if (t instanceof Element && t.closest('input, textarea, select, [contenteditable]')) return;
+      const k = e.key.toLowerCase();
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (k === 'z' || k === 'y')) {
+        e.preventDefault();
+        if (k === 'y' || e.shiftKey) redo();
+        else undo();
+        return;
+      }
       if (e.code !== 'Space') return;
-      const t = e.target as HTMLElement;
-      if (t.closest('input, textarea, select, [contenteditable]')) return;
       e.preventDefault();
       togglePlay();
     };
@@ -329,15 +381,25 @@
         onchange={(e) => edit((s) => (s.title = e.currentTarget.value.replace(/\n/g, ' ').trim() || t('app.untitled')))}
       />
       {#if origin}
-        <span
-          class="origin"
-          class:modified
-          title={modified
-            ? t(CAN_WRITE ? 'app.modifiedTip' : 'app.modifiedTipExport', { path: origin.path })
-            : t('app.savedAs', { path: origin.path })}
-        >
-          {modified ? t('app.modified') : `${origin.path}.txt`}
-        </span>
+        {#if modified}
+          <button
+            class="origin modified"
+            popovertarget="changes"
+            title={t(CAN_WRITE ? 'app.modifiedTip' : 'app.modifiedTipExport', { path: origin.path })}
+            >{t('app.modified')}</button
+          >
+          <div id="changes" class="changes" popover bind:this={changesPop}>
+            <p class="head">{t('chg.title', { path: origin.path })}</p>
+            <ul>
+              {#each changeList as line, i (i)}<li>{line}</li>{/each}
+            </ul>
+            <div class="row">
+              <button onclick={revert} title={t('chg.revertTip')}>{t('chg.revert')}</button>
+            </div>
+          </div>
+        {:else}
+          <span class="origin" title={t('app.savedAs', { path: origin.path })}>{origin.path}.txt</span>
+        {/if}
       {/if}
     </div>
     <nav class="tabs" aria-label={t('app.view')}>
@@ -348,6 +410,10 @@
       <button class:sel={tab === 'help'} onclick={() => (tab = 'help')}>{t('tab.help')}</button>
     </nav>
     <div class="actions">
+      <span class="undo">
+        <button onclick={undo} disabled={!canUndo} title={t('app.undoTip')} aria-label={t('app.undo')}>↶</button>
+        <button onclick={redo} disabled={!canRedo} title={t('app.redoTip')} aria-label={t('app.redo')}>↷</button>
+      </span>
       <button onclick={() => (showLibrary = 'songs')}>{t('app.library')}</button>
       {#if CAN_WRITE}
         <button
@@ -637,7 +703,46 @@
     color: var(--accent);
     font-family: inherit;
     font-weight: 600;
-    cursor: help;
+    border: 0;
+    background: transparent;
+    padding: 0 0 0 9px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .origin.modified:hover {
+    text-decoration: underline;
+  }
+  .changes {
+    position: fixed;
+    inset: 52px auto auto 16px;
+    margin: 0;
+    max-width: min(420px, calc(100vw - 32px));
+    padding: 10px 14px 12px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+    font-size: 0.9rem;
+  }
+  .changes .head {
+    margin: 0 0 6px;
+    font-weight: 600;
+  }
+  .changes ul {
+    margin: 0 0 10px;
+    padding-left: 18px;
+  }
+  .changes .row {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .undo {
+    display: inline-flex;
+    gap: 2px;
+  }
+  .undo button {
+    padding-inline: 9px;
   }
   .title:hover,
   .title:focus {

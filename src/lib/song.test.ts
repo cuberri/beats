@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EMPTY_SONG } from './newSong';
 import { TEST_SONG } from './testSong';
-import { applyTrackOrder, barHasNotes, importIntoSection, importSections, changeMeter, deleteBar, duplicateBar, changeSectionMeter, changeTrackSubdiv, formatSteps, meterOf, ticksPerBeat, trackMeter, moveSection, moveTrack, parse, renameSection, resizeSection, serialize } from './song';
+import { applyTrackOrder, barHasNotes, importIntoSection, importSections, changeMeter, deleteBar, duplicateBar, changeSectionMeter, changeTrackSubdiv, formatSteps, meterOf, ticksPerBeat, trackMeter, moveSection, moveTrack, parse, renameSection, resizeSection, serialize, songChanges } from './song';
 import { resolveInstrument } from './instruments';
 
 describe('parse', () => {
@@ -153,6 +153,23 @@ describe('importing lines into a section', () => {
     expect(sec.tracks[0].subdiv).toBeUndefined();
     expect(sec.tracks[0].steps.join('')).toBe('x.xX.xx.x');
     expect(sec.tracks[1].steps.join('')).toBe("X.....X..");
+  });
+});
+
+describe('song changes', () => {
+  it('lists changed settings and sections, by name', () => {
+    const before = parse('tempo: 100\n[a]\ncaixa: x... .... .... ....\n[b]\nrepi: x... .... .... ....\n[c]\nfundo1: X... .... .... ....\narrangement: a, b\n').song;
+    const after = parse('tempo: 110\n[a]\ncaixa: x.x. .... .... ....\n[c]\nfundo1: X... .... .... ....\n[d]\narrangement: a, b\n').song;
+    expect(songChanges(before, after)).toEqual({
+      settings: ['tempo'],
+      added: ['d'],
+      removed: ['b'],
+      changed: ['a'],
+      arrangement: true, // b is gone, so it left the arrangement too
+      reordered: false,
+    });
+    const moved = parse('tempo: 100\n[b]\nrepi: x... .... .... ....\n[a]\ncaixa: x... .... .... ....\n[c]\nfundo1: X... .... .... ....\narrangement: a, b*2\n').song;
+    expect(songChanges(before, moved)).toMatchObject({ changed: [], reordered: true, arrangement: true });
   });
 });
 
