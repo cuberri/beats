@@ -8,6 +8,8 @@ export interface PlayerState {
   mode: 'song' | 'loop';
   /** In 'loop' mode: the section plays once and stops instead of repeating. */
   once: boolean;
+  /** In 'loop' mode: the only bar being played (0-based), or null for the whole section. */
+  onlyBar: number | null;
   /** Arrangement item index (song mode) currently sounding. */
   itemIdx: number;
   /** Arrangement item queued to start at the next bar line. */
@@ -53,6 +55,8 @@ export class Player {
   private nextTime = 0;
   private pendingIdx: number | null = null;
   private pendingLoop: string | null = null;
+  /** Play only this bar of the section (loop mode), or null. */
+  private onlyBar: number | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private raf = 0;
   private ticks: Tick[] = [];
@@ -104,6 +108,7 @@ export class Player {
     this.stopTimers();
     this.mode = 'song';
     this.program = this.song.arrangement;
+    this.onlyBar = null;
     await this.begin(idx);
   }
 
@@ -112,12 +117,13 @@ export class Player {
     return this.playSection(section, true);
   }
 
-  /** Play one section on its own, right away: once, or until stopped. */
-  async playSection(section: string, loop: boolean) {
+  /** Play one section on its own, right away: once, or until stopped. With `bar`, only that bar. */
+  async playSection(section: string, loop: boolean, bar: number | null = null) {
     this.stopTimers();
     this.mode = 'loop';
     this.program = [{ section, repeat: loop ? Infinity : 1 }];
-    await this.begin(0);
+    this.onlyBar = bar;
+    await this.begin(0, bar ?? 0);
   }
 
   /** While a section plays on its own: keep repeating it, or stop at the end of this pass. */
@@ -166,9 +172,9 @@ export class Player {
     this.endAt = null;
   }
 
-  private async begin(idx: number) {
+  private async begin(idx: number, bar = 0) {
     const ctx = await this.audio();
-    this.cur = { itemIdx: idx, pass: 0, bar: 0, step: 0 };
+    this.cur = { itemIdx: idx, pass: 0, bar, step: 0 };
     this.pendingIdx = null;
     this.pendingLoop = null;
     this.ticks = [];
@@ -267,11 +273,12 @@ export class Player {
     c.step++;
     if (c.step < m.beats * res) return true;
 
-    // Bar line.
+    // Bar line. When playing a single bar, it is both the first and the last bar.
     c.step = 0;
     c.bar++;
-    if (!sec || c.bar >= sec.bars) {
-      c.bar = 0;
+    const only = this.onlyBar !== null && sec ? Math.min(this.onlyBar, sec.bars - 1) : null;
+    if (!sec || c.bar >= (only !== null ? only + 1 : sec.bars)) {
+      c.bar = only ?? 0;
       c.pass++;
       if (!item || c.pass >= item.repeat) {
         c.itemIdx++;
@@ -281,12 +288,14 @@ export class Player {
     if (this.pendingLoop !== null) {
       this.mode = 'loop';
       this.program = [{ section: this.pendingLoop, repeat: Infinity }];
+      this.onlyBar = null;
       this.cur = { itemIdx: 0, pass: 0, bar: 0, step: 0 };
       this.pendingLoop = null;
       this.emit();
     } else if (this.pendingIdx !== null) {
       this.mode = 'song';
       this.program = song.arrangement;
+      this.onlyBar = null;
       this.cur = { itemIdx: this.pendingIdx, pass: 0, bar: 0, step: 0 };
       this.pendingIdx = null;
       this.emit();
@@ -310,6 +319,7 @@ export class Player {
       playing: this.playing,
       mode: this.mode,
       once: this.mode === 'loop' && this.program[0]?.repeat !== Infinity,
+      onlyBar: this.mode === 'loop' ? this.onlyBar : null,
       itemIdx: s?.itemIdx ?? -1,
       pendingIdx: this.pendingIdx,
       pendingLoop: this.pendingLoop,

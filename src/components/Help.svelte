@@ -45,6 +45,13 @@
       de l’arrangement.
     </li>
     <li>
+      Au-dessus de chaque mesure, <b>⧉</b> la duplique : la copie s’insère juste après et les mesures suivantes se
+      décalent vers la droite. Écrivez une mesure une fois, dupliquez-la, puis changez ce qui varie. <b>🗑</b> supprime
+      la mesure. <b>▶</b> joue cette mesure seule, une fois, ou en boucle si le <b>🔁</b> de la section est allumé :
+      pratique pour travailler une mesure difficile. Si toutes les mesures sont identiques, une section d’une mesure répétée dans l’arrangement
+      (<code>groove*4</code>) est plus simple.
+    </li>
+    <li>
       <b>▶ Lecture</b> dans l’en-tête d’une section la joue seule, une fois, sans tenir compte de l’arrangement. Allumez
       <b>🔁</b> à côté pour la répéter jusqu’à <b>■ Stop</b> ; pratique pour travailler un groove. L’éteindre pendant la
       lecture termine le tour en cours puis s’arrête.
@@ -179,6 +186,12 @@ arrangement: call, groove*loop, break1, groove*4</pre>
     <li>
       <b>↑</b> and <b>↓</b> in a section's header move it on the page (or Alt+↑ / Alt+↓ in the header). <b>⧉</b> puts
       the copy right below the original; move it from there. The play order still comes from the arrangement.
+    </li>
+    <li>
+      Above each bar, <b>⧉</b> duplicates it: the copy goes right after it and later bars move right. Write a bar once,
+      duplicate it, then change what varies. <b>🗑</b> deletes the bar. <b>▶</b> plays that bar alone, once, or over
+      and over when the section's <b>🔁</b> is on: handy for working on one tricky bar. If every bar is the same, a one-bar section
+      repeated in the arrangement (<code>groove*4</code>) is simpler.
     </li>
     <li>
       <b>▶ Play</b> in a section's header plays that section on its own, once, whatever the arrangement says. Turn on

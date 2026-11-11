@@ -15,6 +15,8 @@ export interface Progress {
   bars: number;
   /** 0..1 through the whole part (all passes); through the current pass for looping parts. */
   fraction: number;
+  /** The single bar being played on its own (0-based), or null. */
+  onlyBar: number | null;
   /** What plays after this part, if known. */
   next: { section: string; queued: boolean; onNext: boolean } | null;
 }
@@ -25,11 +27,13 @@ export function computeProgress(song: Song, ps: PlayerState): Progress | null {
   if (!sec) return null;
   // ps.step counts ticks, ps.res ticks per beat.
   const spb = meterOf(song, sec).beats * ps.res;
-  const total = sec.bars * spb;
+  // Playing one bar on its own: progress runs through that bar only.
+  const onlyBar = ps.mode === 'loop' && ps.onlyBar !== null ? ps.onlyBar : null;
+  const total = onlyBar !== null ? spb : sec.bars * spb;
   const inSong = ps.mode === 'song' && ps.itemIdx >= 0;
   // A section played on its own once ends with the current pass.
   const repeat = inSong ? (song.arrangement[ps.itemIdx]?.repeat ?? 1) : ps.once ? ps.pass + 1 : Infinity;
-  const done = ps.step + 1;
+  const done = ps.step - (onlyBar ?? 0) * spb + 1;
   const fraction = Math.min(1, repeat === Infinity ? done / total : (ps.pass * total + done) / (repeat * total));
 
   let next: Progress['next'] = null;
@@ -47,6 +51,7 @@ export function computeProgress(song: Song, ps: PlayerState): Progress | null {
     bar: Math.floor(ps.step / spb),
     bars: sec.bars,
     fraction,
+    onlyBar,
     next,
   };
 }

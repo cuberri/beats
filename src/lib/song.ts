@@ -406,6 +406,42 @@ export function resizeSection(song: Song, sec: Section, bars: number) {
   }
 }
 
+/** Steps of one line in bar `bar` (0-based): [start, end). */
+function barRange(song: Song, sec: Section, t: Track, bar: number): [number, number] {
+  const n = stepsPerBar(trackMeter(meterOf(song, sec), t));
+  return [bar * n, (bar + 1) * n];
+}
+
+/** Insert a copy of bar `bar` right after it; later bars move right. False at the 64-bar limit. */
+export function duplicateBar(song: Song, sec: Section, bar: number): boolean {
+  if (bar < 0 || bar >= sec.bars || sec.bars >= 64) return false;
+  for (const t of sec.tracks) {
+    const [a, b] = barRange(song, sec, t, bar);
+    t.steps.splice(b, 0, ...t.steps.slice(a, b));
+  }
+  sec.bars++;
+  return true;
+}
+
+/** Remove bar `bar`; later bars move left. A section keeps at least one bar. */
+export function deleteBar(song: Song, sec: Section, bar: number): boolean {
+  if (bar < 0 || bar >= sec.bars || sec.bars <= 1) return false;
+  for (const t of sec.tracks) {
+    const [a, b] = barRange(song, sec, t, bar);
+    t.steps.splice(a, b - a);
+  }
+  sec.bars--;
+  return true;
+}
+
+/** Whether any line plays in bar `bar`. */
+export function barHasNotes(song: Song, sec: Section, bar: number): boolean {
+  return sec.tracks.some((t) => {
+    const [a, b] = barRange(song, sec, t, bar);
+    return t.steps.slice(a, b).some((c) => c !== REST);
+  });
+}
+
 /** Common meters offered in the app, as beats per bar × steps per beat. */
 export const METERS: { label: string; beats: number; subdiv: number }[] = [
   { label: '4/4', beats: 4, subdiv: 4 },

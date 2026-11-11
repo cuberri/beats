@@ -25,6 +25,8 @@
     changeTrackSubdiv,
     meterOf,
     moveSection,
+    duplicateBar,
+    deleteBar,
     moveTrack,
     serialize,
     uniqueName,
@@ -59,6 +61,7 @@
     playing: false,
     mode: 'song',
     once: false,
+    onlyBar: null,
     itemIdx: -1,
     pendingIdx: null,
     pendingLoop: null,
@@ -395,6 +398,7 @@
           partCount={song.arrangement.length}
           playingAlone={ps.playing && ps.mode === 'loop' && ps.section === sec.name}
           once={ps.once}
+          playingBar={ps.onlyBar}
           pendingLoop={ps.pendingLoop === sec.name}
           {muted}
           {soloed}
@@ -427,11 +431,17 @@
               s.sections.splice(si + 1, 0, copy);
             })}
           onDelete={() => edit((s) => deleteSection(s, sec.name))}
+          onDuplicateBar={(b) => {
+            if (sec.bars >= 64) return say(t('toast.maxBars'));
+            editSection(si, (x, s) => duplicateBar(s, x, b));
+          }}
+          onDeleteBar={(b) => editSection(si, (x, s) => deleteBar(s, x, b))}
           index={si}
           count={song.sections.length}
           onMove={(d) => edit((s) => moveSection(s, si, si + d))}
           onPlay={(loop) => player.playSection(sec.name, loop)}
           onStop={() => player.stop()}
+          onPlayBar={(b, loop) => player.playSection(sec.name, loop, b)}
           onLoopChange={(loop) => player.setSectionLoop(loop)}
           onSaveToLibrary={() => (saveReq = { kind: 'section', name: sec.name })}
           onMeter={(m) => setSectionMeter(si, m)}

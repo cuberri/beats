@@ -9,6 +9,7 @@ const base: PlayerState = {
   playing: true,
   mode: 'song',
   once: false,
+  onlyBar: null,
   itemIdx: 0,
   pendingIdx: null,
   pendingLoop: null,
@@ -54,5 +55,12 @@ describe('computeProgress', () => {
     expect(p.itemIdx).toBe(-1);
     expect(p.repeat).toBe(Infinity);
     expect(p.next).toBeNull();
+  });
+
+  it('measures progress through the single bar being played', () => {
+    // break1 (2 bars) played alone, bar 2 only, halfway through it
+    const p = computeProgress(song, { ...base, mode: 'loop', once: true, onlyBar: 1, itemIdx: -1, section: 'break1', step: 16 + 7 })!;
+    expect([p.onlyBar, p.bar, p.repeat]).toEqual([1, 1, 1]);
+    expect(p.fraction).toBe(0.5);
   });
 });

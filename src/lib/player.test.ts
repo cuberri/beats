@@ -74,4 +74,26 @@ describe('player timing', () => {
     expect(hits).toBe(4);
     p.timer = null;
   });
+
+  it('plays a single bar of a section, once or repeated', () => {
+    const { song } = parse('tempo: 120\n[a] bars=3\nfundo1: x... .... .... .... | X... X... .... .... | m... .... .... ....\n');
+    const p = new Player(song, () => {}) as any;
+    const hits: { ch: string; time: number }[] = [];
+    p.synth = { play: (_i: string, s: { char: string }, time: number) => hits.push({ ch: s.char, time }), click: () => {} };
+    const run = (repeat: number) => {
+      hits.length = 0;
+      p.mode = 'loop';
+      p.program = [{ section: 'a', repeat }];
+      p.onlyBar = 1;
+      p.cur = { itemIdx: 0, pass: 0, bar: 1, step: 0 };
+      p.nextTime = 0;
+      do p.playStep(p.nextTime);
+      while (p.advance());
+    };
+    run(1); // bar 2 only: two accents on beats 1 and 2
+    expect(hits.map((h) => h.ch)).toEqual(['X', 'X']);
+    expect(hits.map((h) => h.time)).toEqual([0, 0.5]);
+    run(2); // the same bar twice, back to back (one bar of 4 beats = 2 s)
+    expect(hits.map((h) => h.time)).toEqual([0, 0.5, 2, 2.5]);
+  });
 });

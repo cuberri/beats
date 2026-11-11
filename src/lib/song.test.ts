@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EMPTY_SONG } from './newSong';
 import { TEST_SONG } from './testSong';
-import { applyTrackOrder, changeMeter, changeSectionMeter, changeTrackSubdiv, formatSteps, meterOf, ticksPerBeat, trackMeter, moveSection, moveTrack, parse, renameSection, resizeSection, serialize } from './song';
+import { applyTrackOrder, barHasNotes, changeMeter, deleteBar, duplicateBar, changeSectionMeter, changeTrackSubdiv, formatSteps, meterOf, ticksPerBeat, trackMeter, moveSection, moveTrack, parse, renameSection, resizeSection, serialize } from './song';
 import { resolveInstrument } from './instruments';
 
 describe('parse', () => {
@@ -144,6 +144,40 @@ describe('linked sections', () => {
     const { song, issues } = parse('[b] = breaks/two#long   # the long one', { resolve });
     expect(issues).toEqual([]);
     expect(song.sections[0].link).toBe('breaks/two#long');
+  });
+});
+
+describe('bars', () => {
+  const src = 'tempo: 100\n[a] bars=2\nfundo1: X... .... .... .... | m... .... .... ....\ncaixa {subdiv=3}: x.. ... ... ... | g.. ... ... ...\n';
+
+  it('duplicates a bar right after itself, per line subdivision', () => {
+    const { song } = parse(src);
+    const a = song.sections[0];
+    expect(duplicateBar(song, a, 0)).toBe(true);
+    expect(a.bars).toBe(3);
+    expect(a.tracks[0].steps.join('')).toBe('X...............X...............m...............');
+    expect(a.tracks[1].steps.join('')).toBe('x...........x...........g...........');
+    const again = parse(serialize(song));
+    expect(again.issues).toEqual([]);
+    expect(again.song).toEqual(song);
+  });
+
+  it('deletes a bar and keeps at least one', () => {
+    const { song } = parse(src);
+    const a = song.sections[0];
+    expect(barHasNotes(song, a, 0)).toBe(true);
+    expect(deleteBar(song, a, 0)).toBe(true);
+    expect(a.bars).toBe(1);
+    expect(a.tracks[0].steps.join('')).toBe('m...............');
+    expect(a.tracks[1].steps.join('')).toBe('g...........');
+    expect(deleteBar(song, a, 0)).toBe(false);
+    expect(a.bars).toBe(1);
+  });
+
+  it('stops at 64 bars', () => {
+    const { song } = parse('[a] bars=64\nfundo1: X...\n');
+    expect(duplicateBar(song, song.sections[0], 0)).toBe(false);
+    expect(song.sections[0].bars).toBe(64);
   });
 });
 

@@ -3,7 +3,7 @@
   import { INSTRUMENTS, INSTRUMENT_BY_ID, findStroke, type InstrumentId } from '../lib/instruments';
   import { passLabel, type Progress } from '../lib/progress';
   import { strokeLabel, t } from '../lib/i18n.svelte';
-  import { METERS, REST, meterOf, ticksPerBeat, trackMeter, type Meter, type Section, type Song } from '../lib/song';
+  import { METERS, REST, barHasNotes, meterOf, ticksPerBeat, trackMeter, type Meter, type Section, type Song } from '../lib/song';
 
   interface Props {
     song: Song;
@@ -19,6 +19,8 @@
     playingAlone: boolean;
     /** While playing on its own: it stops after this pass. */
     once: boolean;
+    /** While playing on its own: the only bar being played (0-based), or null. */
+    playingBar: number | null;
     /** The transport's Loop row queued this section for the next bar line. */
     pendingLoop: boolean;
     muted: string[];
@@ -29,6 +31,9 @@
     onAddTrack: (inst: InstrumentId) => void;
     onRemoveTrack: (track: number) => void;
     onDuplicate: () => void;
+    /** Insert a copy of bar `bar` (0-based) right after it. */
+    onDuplicateBar: (bar: number) => void;
+    onDeleteBar: (bar: number) => void;
     /** Move this section by `d` places (-1 up, +1 down) in the page and text. */
     onMove: (d: -1 | 1) => void;
     /** Position in the song's section list, and how many there are. */
@@ -38,6 +43,8 @@
     /** Play this section on its own right away, once or looping. */
     onPlay: (loop: boolean) => void;
     onStop: () => void;
+    /** Play only bar `bar` (0-based) of this section, once or looping. */
+    onPlayBar: (bar: number, loop: boolean) => void;
     /** Turn looping on or off while this section plays on its own. */
     onLoopChange: (loop: boolean) => void;
     onUnlink: () => void;
@@ -105,6 +112,14 @@
       inBar: b % meter.beats,
     })),
   );
+  /** Bar numbers, for the strip above the beats. */
+  const barList = $derived(Array.from({ length: p.section.bars }, (_, i) => i));
+  /** Grid placement of a whole bar: its beats and the gaps between them. */
+  const barPlace = (bar: number) => `${2 + bar * meter.beats * (res + 1)} / span ${meter.beats * (res + 1) - 1}`;
+  function deleteBar(bar: number) {
+    if (barHasNotes(p.song, p.section, bar) && !confirm(t('confirm.deleteBar', { n: bar + 1 }))) return;
+    p.onDeleteBar(bar);
+  }
   const nowBeat = $derived(p.nowTick >= 0 ? Math.floor(p.nowTick / p.nowRes) : -1);
   /** Step of a line with `d` steps per beat that is sounding now, or -1. */
   function nowStepOf(d: number): number {
@@ -301,9 +316,11 @@
       <span class="now-playing">
         {pr.itemIdx >= 0
           ? t('sec.part', { i: pr.itemIdx + 1, n: p.partCount })
-          : pr.repeat === Infinity
-            ? t('sec.looping')
-            : t('sec.alone')}
+          : pr.onlyBar !== null
+            ? t('sec.aloneBar', { n: pr.onlyBar + 1 })
+            : pr.repeat === Infinity
+              ? t('sec.looping')
+              : t('sec.alone')}
         {t('sec.passBar', { pass: passLabel(pr), bar: pr.bar + 1, bars: pr.bars })}
         {#if pr.next}
           <span class="next" class:queued={pr.next.queued}
@@ -384,15 +401,51 @@
   <div class="scroll">
     <div class="grid" style="grid-template-columns: {template}; --k: {finest / res}">
       <div class="label ruler-label" aria-hidden="true"></div>
+      {#each barList as bar (bar)}
+        <div class="barhead" class:first={bar === 0} style:grid-column={barPlace(bar)}>
+          <span class="barno">{t('sec.barN', { n: bar + 1 })}</span>
+          {#if p.playingAlone && p.playingBar === bar}
+            <button
+              class="ghost bar-btn playing"
+              onclick={p.onStop}
+              title={t('sec.stopTip')}
+              aria-label={t('sec.stopTip')}>■</button
+            >
+          {:else}
+            <button
+              class="ghost bar-btn"
+              onclick={() => p.onPlayBar(bar, loopOn)}
+              title={t('sec.playBar', { n: bar + 1 })}
+              aria-label={t('sec.playBar', { n: bar + 1 })}>▶</button
+            >
+          {/if}
+          {#if !readonly}
+            <button
+              class="ghost bar-btn"
+              onclick={() => p.onDuplicateBar(bar)}
+              disabled={p.section.bars >= 64}
+              title={t('sec.dupBar', { n: bar + 1 })}
+              aria-label={t('sec.dupBar', { n: bar + 1 })}>⧉</button
+            ><button
+              class="ghost bar-btn"
+              onclick={() => deleteBar(bar)}
+              disabled={p.section.bars <= 1}
+              title={t('sec.delBar', { n: bar + 1 })}
+              aria-label={t('sec.delBar', { n: bar + 1 })}>🗑</button
+            >
+          {/if}
+        </div>
+      {/each}
+      <div class="label ruler-label" aria-hidden="true"></div>
       {#each beatsList as bt (bt.b)}
         <div
           class="ruler"
+          class:first={bt.b === 0}
           class:bar-start={bt.inBar === 0}
           class:now={bt.b === nowBeat}
           style="grid-column: {2 + bt.b * (res + 1)} / span {res}"
           aria-hidden="true"
         >
-          {#if bt.inBar === 0 && p.section.bars > 1}<span class="barno">{t('sec.barN', { n: bt.bar + 1 })}</span>{/if}
           <span class="beatno">{bt.inBar + 1}</span>
         </div>
       {/each}
@@ -869,7 +922,7 @@
     color: var(--text);
     font-weight: 700;
   }
-  .ruler.bar-start:not(:nth-child(2))::before {
+  .ruler.bar-start:not(.first)::before {
     content: '';
     position: absolute;
     left: -12px;
@@ -879,7 +932,36 @@
     border-radius: 2px;
     background: var(--line-strong);
   }
+  .barhead {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    overflow: hidden;
+    padding: 0 2px;
+  }
+  .bar-btn {
+    padding: 0 4px;
+    min-height: 0;
+    line-height: 1.4;
+    font-size: 0.8rem;
+    opacity: 0.55;
+  }
+  .bar-btn:hover:not(:disabled),
+  .bar-btn:focus-visible {
+    opacity: 1;
+  }
+  .bar-btn.playing {
+    opacity: 1;
+    color: var(--accent);
+  }
+  .bar-btn:disabled {
+    opacity: 0.2;
+    cursor: default;
+  }
   .barno {
+    margin-right: 4px;
+    white-space: nowrap;
     font-size: 0.68rem;
     font-weight: 700;
     text-transform: uppercase;
