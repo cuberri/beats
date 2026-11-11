@@ -1,4 +1,5 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
+import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve, sep } from 'node:path';
@@ -45,8 +46,36 @@ function songsWriter(): Plugin {
   };
 }
 
-export default defineConfig({
+/** Output of a git command, or '' when git or the repository is missing. */
+function git(args: string): string {
+  try {
+    return execSync(`git ${args}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * What this build is, shown at the bottom of the page. On GitHub Actions the run number and commit
+ * come from the environment; locally they come from git.
+ */
+function buildInfo(command: 'build' | 'serve') {
+  const env = process.env;
+  const remote = git('remote get-url origin');
+  // "git@host:owner/repo.git" or "https://github.com/owner/repo.git" → "owner/repo"
+  const repo = env.GITHUB_REPOSITORY ?? remote.match(/[:/]([^/:]+\/[^/]+?)(?:\.git)?$/)?.[1] ?? null;
+  return {
+    dev: command === 'serve',
+    run: env.GITHUB_RUN_NUMBER ?? null,
+    sha: (env.GITHUB_SHA ?? git('rev-parse HEAD')).slice(0, 7) || null,
+    date: new Date().toISOString(),
+    repoUrl: repo ? `https://github.com/${repo}` : null,
+  };
+}
+
+export default defineConfig(({ command }) => ({
+  define: { __BUILD__: JSON.stringify(buildInfo(command)) },
   // Relative paths so the build works from any folder (e.g. GitHub Pages /repo-name/).
   base: './',
   plugins: [svelte(), songsWriter()],
-});
+}));

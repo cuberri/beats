@@ -6,6 +6,7 @@
   import SaveDialog from './components/SaveDialog.svelte';
   import SectionGrid from './components/SectionGrid.svelte';
   import Transport from './components/Transport.svelte';
+  import { BUILD, buildDate, buildName, commitUrl } from './lib/build';
   import { EMPTY_SONG } from './lib/newSong';
   import { LIBRARY, baseName, libraryEntries, resolveRef, splitRef } from './lib/library.svelte';
   import { CAN_WRITE, writeSong } from './lib/libraryWrite';
@@ -503,6 +504,18 @@
     {:else}
       <Help />
     {/if}
+    <footer class="version" title={t('app.versionTip')}>
+      {buildName()}
+      {#if BUILD.sha}
+        ·
+        {#if commitUrl()}
+          <a href={commitUrl()} target="_blank" rel="noopener" title={t('app.commitTip')}>{BUILD.sha}</a>
+        {:else}
+          {BUILD.sha}
+        {/if}
+      {/if}
+      {#if !BUILD.dev}· {buildDate()}{/if}
+    </footer>
   </main>
 
   <Transport
@@ -645,6 +658,16 @@
   .actions button {
     padding: 5px 10px;
     font-size: 0.9rem;
+  }
+  .version {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .version a {
+    color: inherit;
   }
   main {
     flex: 1;
