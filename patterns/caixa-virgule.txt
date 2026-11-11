@@ -1,0 +1,8 @@
+title: Caixa virgule
+tempo: 120
+swing: 0
+
+[groove-virgule] bars=2
+caixa: XxxX xxxX xxXx Xxxx | XxxX xxxX xxXx Xxxx
+
+arrangement: groove-virgule*loop

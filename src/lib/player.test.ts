@@ -96,4 +96,41 @@ describe('player timing', () => {
     run(2); // the same bar twice, back to back (one bar of 4 beats = 2 s)
     expect(hits.map((h) => h.time)).toEqual([0, 0.5, 2, 2.5]);
   });
+
+  it('keeps a single timer when started twice in a row, and stop wins over a pending start', async () => {
+    const { song } = parse('[a]\nfundo1: x... .... .... ....\n');
+    const p = new Player(song, () => {}) as any;
+    let release!: () => void;
+    const ready = new Promise<void>((r) => (release = r));
+    const ctx = { currentTime: 0 };
+    p.audio = () => ready.then(() => ctx);
+    p.schedule = () => {};
+    const g = globalThis as any;
+    const raf = g.requestAnimationFrame;
+    g.requestAnimationFrame = () => 0;
+    g.cancelAnimationFrame ??= () => {};
+    const setI = g.setInterval;
+    let timers = 0;
+    g.setInterval = (...args: unknown[]) => (timers++, setI(...args));
+    try {
+      const a = p.playSection('a', true);
+      const b = p.playSection('a', true);
+      release();
+      await Promise.all([a, b]);
+      expect(p.playing).toBe(true);
+      expect(timers).toBe(1);
+      const timer = p.timer;
+      p.stop();
+      expect(p.playing).toBe(false);
+      clearInterval(timer);
+
+      const c = p.playSection('a', true);
+      p.stop();
+      await c;
+      expect(p.playing).toBe(false);
+    } finally {
+      g.requestAnimationFrame = raf;
+      g.setInterval = setI;
+    }
+  });
 });

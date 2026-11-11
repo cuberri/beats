@@ -62,6 +62,8 @@ export class Player {
   private ticks: Tick[] = [];
   private endAt: number | null = null;
   private shown: Tick | null = null;
+  /** Bumped on every start and stop, so a start still waiting for the audio can tell it was overtaken. */
+  private run = 0;
 
   muted = new Set<string>();
   soloed = new Set<string>();
@@ -157,6 +159,7 @@ export class Player {
   }
 
   stop() {
+    this.run++;
     this.stopTimers();
     this.ticks = [];
     this.shown = null;
@@ -173,7 +176,11 @@ export class Player {
   }
 
   private async begin(idx: number, bar = 0) {
+    const run = ++this.run;
     const ctx = await this.audio();
+    // Started again or stopped while the audio was starting: leave it to the newer call.
+    if (run !== this.run) return;
+    this.stopTimers();
     this.cur = { itemIdx: idx, pass: 0, bar, step: 0 };
     this.pendingIdx = null;
     this.pendingLoop = null;

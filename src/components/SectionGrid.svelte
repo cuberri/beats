@@ -47,14 +47,12 @@
     onPlayBar: (bar: number, loop: boolean) => void;
     /** Turn looping on or off while this section plays on its own. */
     onLoopChange: (loop: boolean) => void;
-    onUnlink: () => void;
-    /** A linked section the user chose to edit: changes go to its library file. */
-    linkEditing: boolean;
-    /** Library files can be written (dev server). */
-    canEditLinks: boolean;
-    onEditLink: () => void;
-    onDoneEditingLink: () => void;
+    /** Save this section into patterns/. */
     onSaveToLibrary: () => void;
+    /** Save one line on its own as a pattern. */
+    onSaveLine: (track: number) => void;
+    /** Replace or add lines with those of a library file. */
+    onImportLines: () => void;
     onMoveTrack: (from: number, to: number) => void;
     /** New time signature for this section; null = the song's. */
     onMeter: (m: Meter | null) => void;
@@ -146,10 +144,6 @@
   }
 
   let adding = $state('');
-  const linked = $derived(!!p.section.link);
-  const readonly = $derived(linked && !p.linkEditing);
-  /** Showing the "edit the file or unlink?" choice after a click on a read-only linked section. */
-  let askLink = $state(false);
 
   /* ---- drag to reorder lines (mouse and touch, via the grip) ---- */
   let labels: HTMLElement[] = $state([]);
@@ -158,7 +152,7 @@
   let dragTo = $state<number | null>(null);
 
   function startDrag(e: PointerEvent, ti: number) {
-    if (readonly || e.button !== 0) return;
+    if (e.button !== 0) return;
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     dragFrom = dragTo = ti;
@@ -237,7 +231,7 @@
   {#if p.progress}
     <div class="progress" style="width: {(p.progress.fraction * 100).toFixed(1)}%"></div>
   {/if}
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <header onkeydown={headerKey}>
     <input
       class="name"
@@ -256,14 +250,12 @@
         min="1"
         max="64"
         value={p.section.bars}
-        disabled={readonly}
         onchange={(e) => p.onBars(Number(e.currentTarget.value))}
       />
     </label>
     <label class="meter" title={t('sec.meterTip')}>
       <select
         value={meterKey}
-        disabled={readonly}
         aria-label={t('tr.meter')}
         onchange={(e) => {
           const v = e.currentTarget.value;
@@ -275,9 +267,7 @@
           }
         }}
       >
-        {#if !linked}
-          <option value="song">{t('sec.songMeter', { meter: meterName(p.song) })}</option>
-        {/if}
+        <option value="song">{t('sec.songMeter', { meter: meterName(p.song) })}</option>
         {#each METERS as m (m.label)}
           <option value="{m.beats}x{m.subdiv}">{m.label}{m.subdiv === 3 ? ` · ${t('tr.ternary')}` : ''}</option>
         {/each}
@@ -286,31 +276,14 @@
         {/if}
       </select>
     </label>
-    {#if linked}
-      {#if p.linkEditing}
-        <span
-          class="link editing"
-          title={t('sec.editingTip', { ref: p.section.link! })}>{t('sec.editing', { ref: p.section.link! })}</span
-        >
-        <button class="ghost unlink" onclick={p.onDoneEditingLink} title={t('sec.doneTip')}>{t('sec.done')}</button>
-      {:else}
-        <span
-          class="link"
-          title={t('sec.linkTip', { ref: p.section.link! })}>🔗 {p.section.link}</span
-        >
-      {/if}
-      <button
-        class="ghost unlink"
-        onclick={p.onUnlink}
-        title={t('sec.unlinkTip')}>{t('sec.unlink')}</button
-      >
-    {:else}
       <button
         class="ghost save"
         onclick={p.onSaveToLibrary}
         title={t('sec.saveToLibTip')}>{t('sec.saveToLib')}</button
       >
-    {/if}
+      <button class="ghost save" onclick={p.onImportLines} title={t('sec.importIntoTip')}
+        >{t('sec.importInto')}</button
+      >
     {#if p.progress}
       {@const pr = p.progress}
       <span class="now-playing">
@@ -371,33 +344,6 @@
     >
   </header>
 
-  {#if askLink && readonly}
-    <div class="ask" role="dialog" aria-label={t('sec.askLabel')}>
-      <p>
-        {t('sec.comesFrom')} <code>songs/{p.section.link}.txt</code>.
-        {p.canEditLinks ? t('sec.editChangesAll') : t('sec.editOnlyDev')}
-      </p>
-      <div class="ask-buttons">
-        {#if p.canEditLinks}
-          <button
-            class="primary"
-            onclick={() => {
-              askLink = false;
-              p.onEditLink();
-            }}>{t('sec.editFile')}</button
-          >
-        {/if}
-        <button
-          onclick={() => {
-            askLink = false;
-            p.onUnlink();
-          }}>{t('sec.unlinkCopy')}</button
-        >
-        <button class="ghost" onclick={() => (askLink = false)}>{t('cancel')}</button>
-      </div>
-    </div>
-  {/if}
-
   <div class="scroll">
     <div class="grid" style="grid-template-columns: {template}; --k: {finest / res}">
       <div class="label ruler-label" aria-hidden="true"></div>
@@ -419,7 +365,6 @@
               aria-label={t('sec.playBar', { n: bar + 1 })}>▶</button
             >
           {/if}
-          {#if !readonly}
             <button
               class="ghost bar-btn"
               onclick={() => p.onDuplicateBar(bar)}
@@ -433,7 +378,6 @@
               title={t('sec.delBar', { n: bar + 1 })}
               aria-label={t('sec.delBar', { n: bar + 1 })}>🗑</button
             >
-          {/if}
         </div>
       {/each}
       <div class="label ruler-label" aria-hidden="true"></div>
@@ -462,9 +406,6 @@
           style="--hue: {inst.hue}"
           bind:this={labels[ti]}
         >
-          {#if readonly}
-            <span class="dot"></span>
-          {:else}
             <button
               class="grip"
               aria-label={t('sec.move', { label: track.label })}
@@ -475,14 +416,12 @@
               onpointercancel={() => (dragFrom = dragTo = null)}
               onkeydown={(e) => gripKey(e, ti)}
             ></button>
-          {/if}
           <span class="lname" title={inst.name}>{track.label}</span>
           <select
             class="sub"
             class:own={track.subdiv !== undefined}
             value={track.subdiv === undefined ? '' : String(track.subdiv)}
-            disabled={readonly}
-            title={t('sec.lineSubdivTip')}
+                title={t('sec.lineSubdivTip')}
             aria-label={t('sec.lineSubdiv', { label: track.label })}
             onchange={(e) => {
               const v = e.currentTarget.value;
@@ -511,8 +450,13 @@
             title={t('sec.solo')}>S</button
           >
           <button
+            class="ms keep"
+            onclick={() => p.onSaveLine(ti)}
+            title={t('sec.saveLine', { label: track.label })}
+            aria-label={t('sec.saveLine', { label: track.label })}>💾</button
+          >
+          <button
             class="ms rm"
-            hidden={readonly}
             onclick={() => p.onRemoveTrack(ti)}
             title={t('sec.removeLine', { label: track.label })}>×</button
           >
@@ -526,14 +470,12 @@
             class:dim={isMuted}
             class:dragging={dragFrom === ti}
             style="--hue: {inst.hue}"
-            class:locked={readonly}
             style:grid-column={place(si, d)}
             title={t('sec.cellTip', { label: track.label, n: si + 1, stroke: strokeTitle(track.instrument, ch) })}
-            onclick={() => (readonly ? (askLink = true) : p.onCell(ti, si, nextStroke(track.instrument, ch)))}
+            onclick={() => p.onCell(ti, si, nextStroke(track.instrument, ch))}
             oncontextmenu={(e) => {
               e.preventDefault();
-              if (readonly) askLink = true;
-              else p.onCell(ti, si, REST);
+              p.onCell(ti, si, REST);
             }}>{ch === REST ? '' : ch}</button
           >
         {/each}
@@ -542,9 +484,6 @@
   </div>
 
   <footer>
-    {#if readonly}
-      <p class="note">{t('sec.followsFile')}</p>
-    {:else}
     <select
       bind:value={adding}
       onchange={() => {
@@ -564,7 +503,6 @@
         onclick={p.onApplyOrder}
         title={t('sec.useOrderTip')}>{t('sec.useOrder')}</button
       >
-    {/if}
     {/if}
   </footer>
 </section>
@@ -726,13 +664,6 @@
   .label.dim .lname {
     opacity: 0.45;
   }
-  .dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    flex: none;
-    background: hsl(var(--hue) 65% 50%);
-  }
   .grip {
     flex: none;
     width: 14px;
@@ -806,6 +737,13 @@
     border-color: var(--accent);
     color: var(--accent-text);
   }
+  .ms.keep {
+    font-size: 0.65rem;
+    filter: grayscale(1);
+  }
+  .ms.keep:hover {
+    filter: none;
+  }
   .ms.rm {
     border-color: transparent;
     background: transparent;
@@ -824,62 +762,9 @@
     color: hsl(var(--hue) 70% 22%);
     user-select: none;
   }
-  .cell.locked {
-    cursor: default;
-  }
-  .link.editing {
-    background: color-mix(in srgb, var(--accent) 18%, transparent);
-    color: var(--accent);
-    font-weight: 600;
-  }
-  .ask {
-    margin: 0 0 8px;
-    padding: 8px 10px;
-    border-radius: 8px;
-    background: var(--panel-2);
-    border: 1px solid var(--accent);
-    font-size: 0.85rem;
-  }
-  .ask p {
-    margin: 0 0 6px;
-  }
-  .ask code {
-    font-family: var(--mono);
-  }
-  .ask-buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .ask-buttons button {
-    padding: 4px 10px;
-    font-size: 0.85rem;
-  }
-  .link {
-    font-family: var(--mono);
-    font-size: 0.8rem;
-    color: var(--muted);
-    background: var(--panel-2);
-    padding: 3px 8px;
-    border-radius: 999px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 16em;
-  }
   .save {
     font-size: 0.85rem;
     padding: 3px 8px;
-    color: var(--muted);
-  }
-  .unlink {
-    font-size: 0.85rem;
-    padding: 3px 8px;
-    text-decoration: underline;
-  }
-  .note {
-    margin: 0;
-    font-size: 0.8rem;
     color: var(--muted);
   }
   /* Every other beat is shaded so beats read as groups. */
@@ -1044,10 +929,6 @@
     .label {
       gap: 2px;
       padding-right: 4px;
-    }
-    .dot {
-      width: 7px;
-      height: 7px;
     }
     .lname {
       max-width: 3.8em;

@@ -6,11 +6,13 @@ import { dirname, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
 
-const SONGS_DIR = fileURLToPath(new URL('./songs', import.meta.url));
+const ROOT = fileURLToPath(new URL('.', import.meta.url));
+/** Folders the app may write into. */
+const LIBRARY_DIRS = ['songs', 'patterns'];
 
 /**
- * Dev-only endpoint so the app can save into songs/ while running locally (`npm run dev`).
- * POST /__songs/save  { path: "grooves/samba-reggae", text: "...", overwrite?: boolean }
+ * Dev-only endpoint so the app can save into songs/ or patterns/ while running locally (`npm run dev`).
+ * POST /__songs/save  { path: "patterns/virgule", text: "...", overwrite?: boolean }
  * The deployed site is static and has no such endpoint; the app falls back to downloading.
  */
 function songsWriter(): Plugin {
@@ -30,10 +32,13 @@ function songsWriter(): Plugin {
           let raw = '';
           for await (const chunk of req) raw += chunk;
           const { path, text, overwrite } = JSON.parse(raw) as { path: string; text: string; overwrite?: boolean };
-          if (typeof path !== 'string' || typeof text !== 'string' || !/^[\w-]+(\/[\w-]+)*$/.test(path))
+          if (typeof path !== 'string' || typeof text !== 'string' || !/^[\w-]+(\/[\w-]+)+$/.test(path))
             return reply(400, { error: 'Bad file name: use letters, numbers, - and _' });
-          const file = resolve(SONGS_DIR, path + '.txt');
-          if (!file.startsWith(SONGS_DIR + sep)) return reply(400, { error: 'Bad path' });
+          const top = path.slice(0, path.indexOf('/'));
+          if (!LIBRARY_DIRS.includes(top)) return reply(400, { error: 'Only songs/ and patterns/ can be written' });
+          const dir = resolve(ROOT, top);
+          const file = resolve(dir, path.slice(top.length + 1) + '.txt');
+          if (!file.startsWith(dir + sep)) return reply(400, { error: 'Bad path' });
           if (existsSync(file) && !overwrite) return reply(409, { error: 'exists' });
           await mkdir(dirname(file), { recursive: true });
           await writeFile(file, text, 'utf8');

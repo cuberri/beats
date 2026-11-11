@@ -1,0 +1,8 @@
+title: Rpique virgule
+tempo: 120
+swing: 0
+
+[groove-virgule] bars=2
+repi: X..X ...X ..X. X... | X..X ...X ..X. X...
+
+arrangement: groove-virgule*loop

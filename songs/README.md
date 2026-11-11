@@ -1,10 +1,9 @@
-# Song library
+# Songs
 
-Drop exported `.txt` songs here. Subfolders become groups in the app's Library.
+Whole songs, one `.txt` file each. Subfolders only organise them in the app's Library, for example:
 
-A section can reuse a library file instead of having its own lines:
+    songs/currently-played/
+    songs/drafts/
+    songs/learning-in-progress/
 
-    [groove] = grooves/samba-basic        # songs/grooves/samba-basic.txt
-    [break2] = breaks/bossa-1#break       # one section of a file with several
-
-Changing a file here changes it in every song that links to it.
+Reusable grooves and breaks go in [`../patterns/`](../patterns/README.md) instead.

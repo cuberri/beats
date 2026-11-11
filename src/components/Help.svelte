@@ -119,33 +119,38 @@ arrangement: call, groove*loop, break1, groove*4</pre>
     <li>Modifier la grille réécrit proprement le texte : les commentaires ne sont pas conservés.</li>
   </ul>
 
-  <h3>Bibliothèque et parties partagées</h3>
+  <h3>Bibliothèque et motifs</h3>
   <ul>
     <li>
-      <b>📚 Bibliothèque</b> liste les fichiers <code>.txt</code> du dossier <code>songs/</code> du projet. Les
-      sous-dossiers (par ex. <code>grooves/</code>, <code>breaks/</code>) deviennent des groupes. Déposez-y des morceaux
-      exportés pour les ajouter.
-    </li>
-    <li><b>Ouvrir</b> charge un morceau. <b>+ Ajouter</b> insère un groove ou un break dans le morceau actuel comme section <i>liée</i>.</li>
-    <li>
-      Une section liée est une simple référence : <code>[groove] = grooves/samba-basic</code> joue
-      <code>songs/grooves/samba-basic.txt</code>. Utilisez <code>fichier#section</code> pour choisir une section d’un
-      fichier qui en contient plusieurs.
+      <b>📚 Bibliothèque</b> a deux onglets. <b>Morceaux</b> liste les fichiers <code>.txt</code> du dossier
+      <code>songs/</code> ; ses sous-dossiers (par ex. <code>drafts/</code>, <code>currently-played/</code>) servent
+      seulement à les ranger. <b>Motifs</b> liste les grooves et breaks réutilisables du dossier
+      <code>patterns/</code>.
     </li>
     <li>
-      Modifier un fichier de la bibliothèque le modifie dans <b>tous les morceaux qui y font référence</b>. Cliquer sur
-      une section liée vous propose : <b>✎ Modifier le fichier de la bibliothèque</b> (vos changements sont enregistrés
-      dans le fichier au fur et à mesure et tous les morceaux qui l’utilisent suivent ; <b>Terminé</b> la verrouille à
-      nouveau) ou <b>Délier</b> (une copie locale propre à ce morceau). La modification des fichiers de la bibliothèque
-      ne fonctionne que sur l’ordinateur qui exécute <code>npm run dev</code>.
+      <b>Ouvrir</b> charge un fichier pour le jouer ou le modifier. <b>Importer…</b> copie des sections du fichier dans
+      le morceau actuel : cochez les sections voulues et, si besoin, seulement certains instruments (par ex. juste la
+      ligne de caixa d’un motif). <b>+ Importer un motif…</b> sous les sections ouvre directement les motifs.
     </li>
     <li>
-      Ce sont le tempo et le swing du morceau qui s’appliquent, pas ceux du fichier lié. Une section liée garde la
-      mesure de son fichier : un break en 12/8 de la bibliothèque s’insère dans un morceau en 4/4.
+      <b>⤓ Importer des lignes…</b> sur une section y apporte les lignes d’une section d’un fichier : choisissez-la, puis
+      les instruments. Chaque ligne remplace celle du même instrument (ou est ajoutée s’il n’y en a pas), garde son
+      découpage (÷3, ÷4…) et est répétée temps par temps pour remplir la section. La boîte prévient quand des notes
+      seront remplacées.
     </li>
     <li>
-      <b>💾 Vers la bibliothèque</b> sur une section enregistre uniquement cette section dans son propre
-      fichier (par ex. <code>songs/grooves/mon-groove.txt</code>) et y relie le morceau.
+      Dans la boîte d’import, <b>▶</b> à côté d’une section la fait écouter en boucle, au tempo de votre morceau et avec
+      seulement les instruments cochés ; <b>■</b> l’arrête.
+    </li>
+    <li>
+      Une section importée est une <b>copie</b> : vous pouvez la modifier librement, et changer le fichier plus tard ne
+      change pas le morceau. Elle garde la mesure de son fichier : un break en 12/8 s’insère dans un morceau en 4/4. Ce
+      sont le tempo et le swing du morceau qui s’appliquent.
+    </li>
+    <li>
+      <b>💾 Enregistrer comme motif</b> sur une section en enregistre une copie dans <code>patterns/</code>, prête à être
+      importée dans d’autres morceaux. Le petit <b>💾</b> au bout d’une ligne enregistre cette ligne seule (par ex. une
+      caixa à réutiliser).
     </li>
     <li>
       <b>💾 Enregistrer</b> écrit le morceau entier dans <code>songs/</code> ; <b>Enregistrer sous…</b> en fait une
@@ -154,7 +159,8 @@ arrangement: call, groove*loop, break1, groove*4</pre>
     </li>
     <li>
       L’enregistrement dans le dossier ne fonctionne que sur l’ordinateur qui exécute <code>npm run dev</code>. Sur le
-      site en ligne, les mêmes boutons téléchargent le fichier, à ajouter à la main dans <code>songs/</code>.
+      site en ligne, les mêmes boutons téléchargent le fichier, à ajouter à la main dans <code>songs/</code> ou
+      <code>patterns/</code>.
     </li>
   </ul>
 
@@ -163,8 +169,8 @@ arrangement: call, groove*loop, break1, groove*4</pre>
 
   <h3>Partager</h3>
   <p>
-    <b>Partager</b> crée un lien qui contient tout le morceau, parties liées comprises : la personne qui l’ouvre obtient
-    exactement votre enchaînement.
+    <b>Partager</b> crée un lien qui contient tout le morceau : la personne qui l’ouvre obtient exactement votre
+    enchaînement.
     <b>Exporter</b> enregistre un fichier <code>.txt</code> et <b>Importer</b> en charge un. Votre morceau actuel est
     aussi enregistré automatiquement dans ce navigateur.
   </p>
@@ -259,31 +265,34 @@ arrangement: call, groove*loop, break1, groove*4</pre>
     <li>Editing in the grid rewrites the text neatly, so comments are not kept.</li>
   </ul>
 
-  <h3>Library and shared parts</h3>
+  <h3>Library and patterns</h3>
   <ul>
     <li>
-      <b>📚 Library</b> lists the <code>.txt</code> files in the project's <code>songs/</code> folder. Subfolders
-      (e.g. <code>grooves/</code>, <code>breaks/</code>) become groups. Drop exported songs there to add them.
-    </li>
-    <li><b>Open</b> loads a song. <b>+ Add</b> puts a groove or break into the current song as a <i>linked</i> section.</li>
-    <li>
-      A linked section is just a reference: <code>[groove] = grooves/samba-basic</code> plays
-      <code>songs/grooves/samba-basic.txt</code>. Use <code>file#section</code> to pick one section of a file that has
-      several.
+      <b>📚 Library</b> has two tabs. <b>Songs</b> lists the <code>.txt</code> files in the <code>songs/</code> folder;
+      its subfolders (e.g. <code>drafts/</code>, <code>currently-played/</code>) only organise them. <b>Patterns</b>
+      lists the reusable grooves and breaks in the <code>patterns/</code> folder.
     </li>
     <li>
-      Changing a library file changes it in <b>every song that links to it</b>. Clicking a linked section asks what you
-      want: <b>✎ Edit the library file</b> (your changes are saved to the file as you go and every song using it
-      follows; <b>Done</b> locks it again) or <b>Unlink</b> (a local copy only this song uses). Editing library files
-      only works on the computer running <code>npm run dev</code>.
+      <b>Open</b> loads a file to play or edit it. <b>Import…</b> copies sections of the file into the current song:
+      tick the sections you want and, if you like, only some instruments (e.g. just the caixa line of a pattern).
+      <b>+ Import pattern…</b> under the sections goes straight to the patterns.
     </li>
     <li>
-      The song's own tempo and swing are used, not those of the linked file. A linked section keeps its file's time
-      signature, so a 12/8 break from the library fits in a 4/4 song.
+      <b>⤓ Import lines…</b> on a section brings in the lines of one section of a file: pick it, then the instruments.
+      Each line replaces the one of the same instrument (or is added if there is none), keeps its steps per beat (÷3,
+      ÷4…) and is repeated beat by beat to fill the section. The dialog warns you when notes will be replaced.
     </li>
     <li>
-      <b>💾 Save to library</b> on a section saves just that section as its own file (e.g.
-      <code>songs/grooves/my-groove.txt</code>) and links the song to it.
+      In the import dialog, <b>▶</b> next to a section plays it in a loop, at your song's tempo and with only the ticked
+      instruments; <b>■</b> stops it.
+    </li>
+    <li>
+      An imported section is a <b>copy</b>: change it freely, and later changes to the file don't change the song. It
+      keeps its file's time signature, so a 12/8 break fits in a 4/4 song. The song's own tempo and swing are used.
+    </li>
+    <li>
+      <b>💾 Save as pattern</b> on a section saves a copy of it in <code>patterns/</code>, ready to import into other
+      songs. The small <b>💾</b> at the end of a line saves that line alone (e.g. a caixa part to reuse).
     </li>
     <li>
       <b>💾 Save</b> writes the whole song into <code>songs/</code>; <b>Save as…</b> makes a copy under another name. Under
@@ -291,7 +300,7 @@ arrangement: call, groove*loop, break1, groove*4</pre>
     </li>
     <li>
       Saving into the folder only works on the computer running <code>npm run dev</code>. On the deployed site, the same
-      buttons download the file instead, to be added to <code>songs/</code> by hand.
+      buttons download the file instead, to be added to <code>songs/</code> or <code>patterns/</code> by hand.
     </li>
   </ul>
 
@@ -300,8 +309,7 @@ arrangement: call, groove*loop, break1, groove*4</pre>
 
   <h3>Sharing</h3>
   <p>
-    <b>Share</b> creates a link containing the whole song, linked parts included, so whoever opens it gets exactly
-    your arrangement.
+    <b>Share</b> creates a link containing the whole song, so whoever opens it gets exactly your arrangement.
     <b>Export</b> saves a <code>.txt</code> file and <b>Import</b> loads one. Your current song is also saved in this
     browser automatically.
   </p>

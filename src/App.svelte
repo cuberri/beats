@@ -2,14 +2,16 @@
   import { onMount } from 'svelte';
   import ArrangementEditor from './components/ArrangementEditor.svelte';
   import Help from './components/Help.svelte';
+  import ImportDialog from './components/ImportDialog.svelte';
   import LibraryPanel from './components/LibraryPanel.svelte';
   import SaveDialog from './components/SaveDialog.svelte';
   import SectionGrid from './components/SectionGrid.svelte';
   import Transport from './components/Transport.svelte';
   import { BUILD, buildDate, buildName, commitUrl } from './lib/build';
   import { EMPTY_SONG } from './lib/newSong';
-  import { LIBRARY, baseName, libraryEntries, resolveRef, splitRef } from './lib/library.svelte';
+  import { LIBRARY, baseName, folderOf, libraryEntries, type LibKind } from './lib/library.svelte';
   import { CAN_WRITE, writeSong } from './lib/libraryWrite';
+  import type { InstrumentId } from './lib/instruments';
   import { LANGS, i18n, setLang, t, type Lang } from './lib/i18n.svelte';
   import { Player, type PlayerState } from './lib/player';
   import { computeProgress } from './lib/progress';
@@ -24,6 +26,8 @@
     changeMeter,
     changeSectionMeter,
     changeTrackSubdiv,
+    importIntoSection,
+    importSections,
     meterOf,
     moveSection,
     duplicateBar,
@@ -41,17 +45,23 @@
   let text = $state(initial.text);
   /** Library file the song was opened from, if any. */
   let origin = $state<Origin | null>(initial.origin);
-  const parsed = $derived(parse(text, { resolve: resolveRef, stack: origin ? [origin.path] : [] }));
+  const parsed = $derived(parse(text));
   const song = $derived(parsed.song);
   const modified = $derived(!!origin && text !== origin.text);
   /** True when replacing the song could lose work. */
   const dirty = $derived(origin ? modified : text !== EMPTY_SONG);
-  let showLibrary = $state(false);
-  /** Open save dialog: for the whole song, or for one section. */
-  let saveReq = $state<{ kind: 'song' } | { kind: 'section'; name: string } | null>(null);
-  const folders = $derived([
-    ...new Set(['grooves', 'breaks', ...libraryEntries().map((e) => e.group)].filter(Boolean)),
-  ]);
+  /** Library panel, open on its Songs or Patterns tab. */
+  let showLibrary = $state<LibKind | null>(null);
+  /** Library file whose sections are being picked for import. */
+  let importPath = $state<string | null>(null);
+  /** Section receiving imported lines (instead of new sections being added), by name. */
+  let importTarget = $state<string | null>(null);
+  /** Open save dialog: for the whole song, or for one section (as a pattern). */
+  let saveReq = $state<
+    { kind: 'song' } | { kind: 'section'; name: string; line?: string } | null
+  >(null);
+  /** Subfolders of songs/, offered when saving a song. */
+  const songFolders = $derived([...new Set(libraryEntries('songs').map((e) => e.group).filter(Boolean))]);
 
   let tab = $state<'grid' | 'text' | 'help'>('grid');
   let muted = $state<string[]>([]);
@@ -78,7 +88,7 @@
 
   $effect(() => player.setSong(song));
   $effect(() => saveLocal({ text, origin }));
-  // The song's own file changed on disk (or was edited through a link) and there are no unsaved
+  // The song's own file changed on disk and there are no unsaved
   // changes here: follow it.
   $effect(() => {
     if (!origin) return;
@@ -94,48 +104,19 @@
     player.click = click;
   });
 
-  /** Apply a change to a copy of the song and write it back as text. */
-  /** Linked library files the user chose to edit in place (this session only). */
-  let editingFiles = $state<string[]>([]);
-  const writeTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-  /**
-   * Change one section. A linked section is changed in its library file: the app updates at once,
-   * and the file is written shortly after (several quick clicks become one write).
-   */
+  /** Change one section. */
   function editSection(si: number, fn: (sec: Section, s: Song) => void) {
-    const ref = song.sections[si]?.link;
-    if (!ref) return edit((s) => fn(s.sections[si], s));
-
-    const { path, section } = splitRef(ref);
-    const src = LIBRARY[path];
-    if (src == null) return say(t('toast.fileNotFound', { path }));
-    const lib = parse(src, { resolve: resolveRef, stack: [path] }).song;
-    const target = section ? lib.sections.find((x) => x.name === section) : lib.sections[0];
-    if (!target) return say(t('toast.sectionNotFound', { path }));
-    if (target.link) return say(t('toast.linksFurther', { ref: target.link }));
-    fn(target, lib);
-    const newText = serialize(lib);
-    LIBRARY[path] = newText; // instant: every section linking to it re-renders now
-
-    clearTimeout(writeTimers.get(path));
-    writeTimers.set(
-      path,
-      setTimeout(async () => {
-        writeTimers.delete(path);
-        const r = await writeSong(path, newText, true);
-        if (!r.ok) say(t('toast.cantSave', { path, error: 'error' in r ? r.error : t('toast.fileExists') }));
-      }, 400),
-    );
+    edit((s) => fn(s.sections[si], s));
   }
 
+  /** Apply a change to a copy of the song and write it back as text. */
   function edit(fn: (s: Song) => void) {
     const s = structuredClone(song);
     fn(s);
     text = serialize(s);
   }
 
-  /** Switch meter, converting the notes; asks first when notes would be lost or links dropped. */
+  /** Switch meter, converting the notes; asks first when notes would be lost. */
   function setMeter(beats: number, subdiv: number) {
     if (beats === song.beats && subdiv === song.subdiv) return;
     const s = structuredClone(song);
@@ -146,12 +127,10 @@
 
   /** Give one section its own time signature, or the song's again (null). */
   function setSectionMeter(si: number, to: Meter | null) {
-    const target = to ?? { beats: song.beats, subdiv: song.subdiv };
     const s = structuredClone(song);
     const lost = changeSectionMeter(s, s.sections[si], to);
     if (lost && !confirm(t('confirm.meterLost', { n: lost }) + '\n\n' + t('confirm.meterGo'))) return;
-    if (song.sections[si].link) editSection(si, (x, lib) => changeSectionMeter(lib, x, target));
-    else text = serialize(s);
+    text = serialize(s);
   }
 
   /** Give one line its own steps per beat, or the section's again (null). */
@@ -159,8 +138,7 @@
     const s = structuredClone(song);
     const lost = changeTrackSubdiv(s, s.sections[si], ti, d);
     if (lost && !confirm(t('confirm.meterLost', { n: lost }) + '\n\n' + t('confirm.lineGo'))) return;
-    if (song.sections[si].link) editSection(si, (x, lib) => changeTrackSubdiv(lib, x, ti, d));
-    else text = serialize(s);
+    text = serialize(s);
   }
 
   function toggle(list: string[], label: string): string[] {
@@ -190,30 +168,52 @@
     tab = 'grid';
   }
 
-  /** Add every section of a library file to the current song as linked sections. */
-  function addFromLibrary(path: string) {
-    const lib = parse(LIBRARY[path], { resolve: resolveRef, stack: [path] }).song;
-    const secs = lib.sections;
-    if (!secs.length) return say(t('toast.noSections'));
-    edit((s) => {
-      for (const sec of secs) {
-        const name = uniqueName(
-          s.sections.map((x) => x.name),
-          secs.length > 1 ? sec.name : baseName(path),
-        );
-        s.sections.push({
-          ...structuredClone(sec),
-          ...meterOf(lib, sec), // keeps the file's time signature
-          name,
-          link: secs.length > 1 ? `${path}#${sec.name}` : path,
-        });
-      }
-    });
+  /** Copy sections of a library file (a pattern or another song) into the current song. */
+  function importFromLibrary(path: string, names: string[], instruments: InstrumentId[]) {
+    const source = parse(LIBRARY[path] ?? '').song;
+    let n = 0;
+    edit((s) => (n = importSections(s, source, names, instruments, baseName(path))));
+    if (!n) return;
     tab = 'grid';
-    say(secs.length > 1 ? t('toast.addedN', { n: secs.length }) : t('toast.added', { name: baseName(path) }));
+    say(n > 1 ? t('toast.importedN', { n }) : t('toast.imported', { name: song.sections.at(-1)!.name }));
   }
 
-  /** Write into songs/, asking before replacing an existing file. */
+  /** Plays library files while they are being picked for import; made on first use. */
+  let previewPlayer: Player | null = null;
+  let previewing: string | null = null;
+  function previewFromLibrary(path: string, section: string | null, instruments: InstrumentId[]) {
+    if (!section) {
+      previewPlayer?.stop();
+      previewing = null;
+      return;
+    }
+    const source = parse(LIBRARY[path] ?? '').song;
+    // At this song's tempo and swing, so it sounds as it would once imported.
+    source.tempo = song.tempo;
+    source.swing = song.swing;
+    for (const s of source.sections) s.tracks = s.tracks.filter((tr) => instruments.includes(tr.instrument));
+    previewPlayer ??= new Player(source, () => {});
+    previewPlayer.setSong(source);
+    // Only the instruments changed: keep playing from where it is.
+    if (previewing === section) return;
+    player.stop();
+    previewing = section;
+    previewPlayer.playSection(section, true);
+  }
+
+  /** Replace or add lines of section `target` with those of section `from` of a library file. */
+  function importLinesFromLibrary(path: string, target: string, from: string, instruments: InstrumentId[]) {
+    const source = parse(LIBRARY[path] ?? '').song;
+    const src = source.sections.find((x) => x.name === from);
+    const si = song.sections.findIndex((x) => x.name === target);
+    if (!src || si < 0) return;
+    let r = { replaced: [] as string[], added: [] as string[] };
+    editSection(si, (x, s) => (r = importIntoSection(s, x, source, src, instruments)));
+    const labels = [...r.replaced, ...r.added];
+    if (labels.length) say(t('toast.linesImported', { labels: labels.join(', '), name: target }));
+  }
+
+  /** Write into songs/ or patterns/, asking before replacing an existing file. */
   async function writeWithConfirm(path: string, content: string, overwrite = false): Promise<boolean> {
     let r = await writeSong(path, content, overwrite);
     if (!r.ok && r.exists) {
@@ -228,32 +228,34 @@
   }
 
   /** A section on its own, as a library file that loops it when opened. */
-  function sectionFileText(sec: Section, path: string): string {
+  function sectionFileText(sec: Section, path: string, line?: string): string {
     const pretty = baseName(path).replace(/[-_]+/g, ' ');
     return serialize({
       title: pretty.charAt(0).toUpperCase() + pretty.slice(1),
       tempo: song.tempo,
       swing: song.swing,
       ...meterOf(song, sec),
-      sections: [{ name: sec.name, bars: sec.bars, tracks: structuredClone(sec.tracks) }],
+      sections: [
+        {
+          name: sec.name,
+          bars: sec.bars,
+          tracks: structuredClone(line ? sec.tracks.filter((tr) => tr.label === line) : sec.tracks),
+        },
+      ],
       arrangement: [{ section: sec.name, repeat: Infinity }],
     });
   }
 
-  async function saveSection(name: string, path: string) {
+  /** Save a section, or only its line `line`, as a pattern. */
+  async function saveSection(name: string, path: string, line?: string) {
     const sec = song.sections.find((s) => s.name === name);
     if (!sec) return;
-    const content = sectionFileText(sec, path);
+    const content = sectionFileText(sec, path, line);
     if (!CAN_WRITE) {
       downloadText(baseName(path) + '.txt', content);
-      return say(t('toast.downloaded', { folder: path.includes('/') ? path.slice(0, path.lastIndexOf('/')) + '/' : '' }));
+      return say(t('toast.downloaded', { folder: folderOf(path) + '/' }));
     }
     if (!(await writeWithConfirm(path, content))) return;
-    // The section now follows the new file.
-    edit((s) => {
-      const x = s.sections.find((x) => x.name === name);
-      if (x) x.link = path;
-    });
     say(t('toast.saved', { path }));
   }
 
@@ -269,8 +271,7 @@
   }
 
   async function share() {
-    // Links are self-contained: linked sections are written out in full.
-    const url = shareLink(song.sections.some((x) => x.link) ? serialize(song, { inline: true }) : text);
+    const url = shareLink(text);
     try {
       if (navigator.share && matchMedia('(pointer: coarse)').matches) {
         await navigator.share({ title: song.title, url });
@@ -335,7 +336,7 @@
             ? t(CAN_WRITE ? 'app.modifiedTip' : 'app.modifiedTipExport', { path: origin.path })
             : t('app.savedAs', { path: origin.path })}
         >
-          {modified ? t('app.modified') : `songs/${origin.path}.txt`}
+          {modified ? t('app.modified') : `${origin.path}.txt`}
         </span>
       {/if}
     </div>
@@ -347,7 +348,7 @@
       <button class:sel={tab === 'help'} onclick={() => (tab = 'help')}>{t('tab.help')}</button>
     </nav>
     <div class="actions">
-      <button onclick={() => (showLibrary = true)}>{t('app.library')}</button>
+      <button onclick={() => (showLibrary = 'songs')}>{t('app.library')}</button>
       {#if CAN_WRITE}
         <button
           onclick={() => saveSong()}
@@ -407,14 +408,6 @@
           pendingLoop={ps.pendingLoop === sec.name}
           {muted}
           {soloed}
-          linkEditing={!!sec.link && editingFiles.includes(splitRef(sec.link).path)}
-          canEditLinks={CAN_WRITE}
-          onEditLink={() => {
-            if (sec.link) editingFiles = [...editingFiles, splitRef(sec.link).path];
-          }}
-          onDoneEditingLink={() => {
-            if (sec.link) editingFiles = editingFiles.filter((f) => f !== splitRef(sec.link!).path);
-          }}
           onCell={(ti, step, next) => {
             editSection(si, (x) => (x.tracks[ti].steps[step] = next));
             if (next !== REST) player.preview(sec.tracks[ti].instrument, next);
@@ -449,19 +442,20 @@
           onPlayBar={(b, loop) => player.playSection(sec.name, loop, b)}
           onLoopChange={(loop) => player.setSectionLoop(loop)}
           onSaveToLibrary={() => (saveReq = { kind: 'section', name: sec.name })}
+          onSaveLine={(ti) => (saveReq = { kind: 'section', name: sec.name, line: sec.tracks[ti].label })}
+          onImportLines={() => {
+            importTarget = sec.name;
+            showLibrary = 'patterns';
+          }}
           onMeter={(m) => setSectionMeter(si, m)}
           onLineSubdiv={(ti, d) => setLineSubdiv(si, ti, d)}
           onMoveTrack={(from, to) => editSection(si, (x) => moveTrack(x, from, to))}
-          onApplyOrder={song.sections.some((x, xi) => xi !== si && !x.link && x.tracks.length > 1)
+          onApplyOrder={song.sections.some((x, xi) => xi !== si && x.tracks.length > 1)
             ? () => {
                 edit((s) => applyTrackOrder(s, s.sections[si]));
                 say(t('toast.orderApplied'));
               }
             : undefined}
-          onUnlink={() =>
-            edit((s) => {
-              delete s.sections[si].link;
-            })}
           onToggleMute={(l) => (muted = toggle(muted, l))}
           onToggleSolo={(l) => (soloed = toggle(soloed, l))}
         />
@@ -483,7 +477,7 @@
             s.sections.push({ name, bars: 1, tracks });
           })}>{t('grid.addSection')}</button
       >
-      <button onclick={() => (showLibrary = true)}>{t('grid.fromLibrary')}</button>
+      <button onclick={() => (showLibrary = 'patterns')}>{t('grid.importPattern')}</button>
       </div>
 
       <ArrangementEditor
@@ -540,19 +534,44 @@
 
   {#if showLibrary}
     <LibraryPanel
+      initialKind={showLibrary}
       entries={libraryEntries()}
       currentPath={origin?.path ?? null}
       onOpen={openFromLibrary}
-      onAdd={addFromLibrary}
-      onClose={() => (showLibrary = false)}
+      onImport={(path) => (importPath = path)}
+      onClose={() => {
+        showLibrary = null;
+        if (!importPath) importTarget = null;
+      }}
+      targetName={importTarget ?? undefined}
+    />
+  {/if}
+
+  {#if importPath}
+    <ImportDialog
+      path={importPath}
+      source={parse(LIBRARY[importPath] ?? '').song}
+      target={song.sections.find((x) => x.name === importTarget)}
+      onImport={(names, instruments) => {
+        if (!importPath) return;
+        if (importTarget) importLinesFromLibrary(importPath, importTarget, names[0], instruments);
+        else importFromLibrary(importPath, names, instruments);
+      }}
+      onPreview={(sec, instruments) => importPath && previewFromLibrary(importPath, sec, instruments)}
+      onClose={() => {
+        previewFromLibrary('', null, []);
+        importPath = null;
+        importTarget = null;
+      }}
     />
   {/if}
 
   {#if saveReq?.kind === 'song'}
     <SaveDialog
       heading={origin ? t('save.songAs') : t('save.songTo')}
-      {folders}
-      defaultFolder={origin?.path.includes('/') ? origin.path.slice(0, origin.path.lastIndexOf('/')) : ''}
+      root="songs"
+      folders={songFolders}
+      defaultFolder={origin?.path.startsWith('songs/') ? folderOf(origin.path).replace(/^songs\/?/, '') : ''}
       defaultName={origin ? baseName(origin.path) + t('save.copySuffix') : song.title}
       note={CAN_WRITE ? undefined : t('save.noteDownloadSong')}
       onSave={(path) => saveSong(path)}
@@ -560,15 +579,16 @@
     />
   {:else if saveReq?.kind === 'section'}
     {@const name = saveReq.name}
+    {@const line = saveReq.line}
+    {@const base = /^(groove|section|main|break|call)\d*$/i.test(name) ? `${song.title} ${name}` : name}
     <SaveDialog
-      heading={t('save.sectionTo', { name })}
-      {folders}
-      defaultFolder={/break|bossa|parad|call|chamada|virada|intro|fim|end/i.test(name) ? 'breaks' : 'grooves'}
-      defaultName={/^(groove|section|main|break|call)\d*$/i.test(name) ? `${song.title} ${name}` : name}
-      note={CAN_WRITE
-        ? t('save.noteSection')
-        : t('save.noteDownloadSection')}
-      onSave={(path) => saveSection(name, path)}
+      heading={line ? t('save.lineTo', { label: line, name }) : t('save.sectionTo', { name })}
+      root="patterns"
+      folders={null}
+      defaultFolder=""
+      defaultName={line ? `${line} ${base}` : base}
+      note={CAN_WRITE ? t(line ? 'save.noteLine' : 'save.noteSection') : t('save.noteDownloadSection')}
+      onSave={(path) => saveSection(name, path, line)}
       onClose={() => (saveReq = null)}
     />
   {/if}

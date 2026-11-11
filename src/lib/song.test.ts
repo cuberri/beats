@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EMPTY_SONG } from './newSong';
 import { TEST_SONG } from './testSong';
-import { applyTrackOrder, barHasNotes, changeMeter, deleteBar, duplicateBar, changeSectionMeter, changeTrackSubdiv, formatSteps, meterOf, ticksPerBeat, trackMeter, moveSection, moveTrack, parse, renameSection, resizeSection, serialize } from './song';
+import { applyTrackOrder, barHasNotes, importIntoSection, importSections, changeMeter, deleteBar, duplicateBar, changeSectionMeter, changeTrackSubdiv, formatSteps, meterOf, ticksPerBeat, trackMeter, moveSection, moveTrack, parse, renameSection, resizeSection, serialize } from './song';
 import { resolveInstrument } from './instruments';
 
 describe('parse', () => {
@@ -86,64 +86,73 @@ describe('editing', () => {
   });
 });
 
-describe('linked sections', () => {
-  const lib: Record<string, string> = {
-    'grooves/basic': 'tempo: 80\n[groove]\nfundo1: m... X... m... X...\ncaixa: x.xx x.xx x.xx x.xx\n',
-    'breaks/two': '[short]\nrepi: X...\n[long] bars=2\nrepi: X... X...\n',
-    'loops/a': '[a] = loops/b\n',
-    'loops/b': '[b] = loops/a\n',
-    'odd/triplets': 'subdiv: 3\n[t]\nrepi: x..\n',
-  };
-  const resolve = (p: string) => lib[p] ?? null;
+describe('old library links', () => {
+  it('reports "[name] = path" and keeps the section, empty', () => {
+    const { song, issues } = parse('[main] = grooves/basic   # old style\narrangement: main*loop\n');
+    expect(issues.map((i) => i.line)).toEqual([1]);
+    expect(issues[0].message).toMatch(/no longer supported/);
+    expect(song.sections).toEqual([{ name: 'main', bars: 1, tracks: [] }]);
+  });
+});
 
-  it('fills in tracks from the library and keeps the song tempo', () => {
-    const { song, issues } = parse('tempo: 120\n[main] = grooves/basic\n[b] = breaks/two#long', { resolve });
-    expect(issues).toEqual([]);
-    expect(song.tempo).toBe(120);
-    expect(song.sections[0]).toMatchObject({ name: 'main', bars: 1, link: 'grooves/basic' });
-    expect(song.sections[0].tracks.map((t) => t.label)).toEqual(['fundo1', 'caixa']);
-    expect(song.sections[1].bars).toBe(2);
+describe('importing sections', () => {
+  const pattern = parse(
+    'subdiv: 3\n[groove]\nfundo1: X.. ... X.. ...\ncaixa: x.x x.x x.x x.x\n[break] bars=2\nrepi: X.. ... ... ... | X.. ... ... ...\n',
+  ).song;
+
+  it('copies the chosen sections and instruments, with the file\'s time signature', () => {
+    const { song } = parse('[groove]\nfundo1: X... .... .... ....\n');
+    const n = importSections(song, pattern, ['groove', 'break'], ['caixa', 'repi'], 'virgule');
+    // groove keeps only its caixa line; break keeps its repi line
+    expect(n).toBe(2);
+    expect(song.sections.map((x) => x.name)).toEqual(['groove', 'groove2', 'break']);
+    expect(song.sections[1].tracks.map((t) => t.label)).toEqual(['caixa']);
+    expect(song.sections[1]).toMatchObject({ beats: 4, subdiv: 3, bars: 1 });
+    expect(song.sections[2].bars).toBe(2);
+    // a real copy: changing the import leaves the pattern alone
+    song.sections[1].tracks[0].steps[0] = 'X';
+    expect(pattern.sections[0].tracks[1].steps[0]).toBe('x');
+    expect(parse(serialize(song)).issues).toEqual([]);
   });
 
-  it('writes references back, or inlines them for sharing', () => {
-    const src = '[main] = grooves/basic\n[b] = breaks/two#short\narrangement: main*loop, b';
-    const { song } = parse(src, { resolve });
-    const kept = serialize(song);
-    expect(kept).toContain('[main] = grooves/basic');
-    expect(parse(kept, { resolve }).song).toEqual(song);
+  it('skips sections left with no line, and names a single section after the file', () => {
+    const { song } = parse('[a]\nrepi: x...\n');
+    expect(importSections(song, pattern, ['groove', 'break'], ['fundo1'], 'virgule')).toBe(1);
+    expect(song.sections.map((x) => x.name)).toEqual(['a', 'groove']);
+    const one = parse('[only]\nrepi: X...\n').song;
+    importSections(song, one, ['only'], ['repi'], 'repique-virgule');
+    expect(song.sections.at(-1)!.name).toBe('repique-virgule');
+  });
+});
 
-    const inlined = serialize(song, { inline: true });
-    expect(inlined).not.toContain('grooves/basic');
-    const standalone = parse(inlined); // no library available
-    expect(standalone.issues).toEqual([]);
-    expect(standalone.song.sections[0].tracks).toEqual(song.sections[0].tracks);
+describe('importing lines into a section', () => {
+  const pattern = parse(
+    "beats: 2\nsubdiv: 3\n[virgule]\ncaixa: x.x X.x\nrepi lead: X.. ...\n",
+  ).song;
+  const from = pattern.sections[0];
+
+  it('replaces the matching line, repeated to fill the section, with its own steps per beat', () => {
+    const { song } = parse('[groove] bars=2\nfundo1: X... .... .... .... | X... .... .... ....\ncaixa: xxxx xxxx xxxx xxxx | xxxx xxxx xxxx xxxx\n');
+    const sec = song.sections[0];
+    const r = importIntoSection(song, sec, pattern, from, ['caixa']);
+    expect(r).toEqual({ replaced: ['caixa'], added: [] });
+    expect(sec.tracks.map((t) => t.label)).toEqual(['fundo1', 'caixa']);
+    expect(sec.tracks[1].subdiv).toBe(3);
+    // 2 beats of pattern repeated over 2 bars of 4 beats
+    expect(sec.tracks[1].steps.join('')).toBe('x.xX.x'.repeat(4));
+    const again = parse(serialize(song));
+    expect(again.issues).toEqual([]);
+    expect(again.song.sections[0].tracks[1].steps.join('')).toBe('x.xX.x'.repeat(4));
   });
 
-  it('reports missing files, missing sections, ambiguity, cycles and stray lines', () => {
-    const { song, issues } = parse(
-      [
-        '[a] = nope/missing',
-        '[b] = breaks/two#nope',
-        '[c] = breaks/two',
-        '[d] = loops/a',
-        '[e] = odd/triplets',
-        '[f] = grooves/basic',
-        'repi: x',
-      ].join('\n'),
-      { resolve },
-    );
-    expect(issues.map((i) => i.line)).toEqual([1, 2, 3, 4, 7]);
-    expect(issues.find((i) => i.line === 4)!.message).toMatch(/refers back/);
-    expect(song.sections[2].tracks).toHaveLength(1); // ambiguous still plays the first one
-    expect(song.sections[0].tracks).toEqual([]); // missing plays silence
-    // A file in another time signature keeps it.
-    expect(song.sections[4]).toMatchObject({ beats: 4, subdiv: 3 });
-  });
-
-  it('treats # as a comment only at line start or after a space', () => {
-    const { song, issues } = parse('[b] = breaks/two#long   # the long one', { resolve });
-    expect(issues).toEqual([]);
-    expect(song.sections[0].link).toBe('breaks/two#long');
+  it('adds lines the section lacks, and drops its own subdiv when the grids agree', () => {
+    const { song } = parse('subdiv: 3\n[a] beats=3\ncaixa {subdiv=4}: xxxx xxxx xxxx\n');
+    const sec = song.sections[0];
+    const r = importIntoSection(song, sec, pattern, from, ['caixa', 'repi']);
+    expect(r).toEqual({ replaced: ['caixa'], added: ['repi lead'] });
+    expect(sec.tracks[0].subdiv).toBeUndefined();
+    expect(sec.tracks[0].steps.join('')).toBe('x.xX.xx.x');
+    expect(sec.tracks[1].steps.join('')).toBe("X.....X..");
   });
 });
 

@@ -1,0 +1,12 @@
+title: Virgule
+tempo: 120
+swing: 0
+
+[groove-virgule] bars=2
+fundo1: X... .... X... .... | X... .... X... ....
+fundo2: .... X... .... X... | .... X... .... X...
+dobra:  X... ..X. .... ..X. | .... ..X. XXXX XXXX
+caixa:  XxxX xxxX xxXx Xxxx | XxxX xxxX xxXx Xxxx
+repi:   X..X ...X ..X. X... | X..X ...X ..X. X...
+
+arrangement: groove-virgule*loop

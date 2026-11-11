@@ -15,7 +15,9 @@ how to run it and the code map; this file is for working on the code.
 
 - The song **text** is the source of truth. UI changes go through `edit()` / `editSection()` in `App.svelte`,
   which change a parsed copy and serialize it back. Keep `parse` and `serialize` in `src/lib/song.ts` round-tripping.
-- A linked section (`[name] = path#section`) lives in a `songs/` file. Editing one writes that file, not the song.
+- The library is `songs/` (whole songs; subfolders only organise) and `patterns/` (reusable sections). Library
+  paths include that top folder ("songs/drafts/x", "patterns/virgule"). Importing copies sections into the song
+  (`importSections` in `song.ts`); there are no links between files any more.
 - Time signatures: song-level `beats`/`subdiv`, optional per-section override, optional per-line `{subdiv=N}`.
   Use `meterOf`, `trackMeter` and `ticksPerBeat` instead of assuming 4 steps per beat. The player steps through
   the finest grid of a section (LCM of its lines' subdivisions).

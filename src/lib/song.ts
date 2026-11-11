@@ -18,9 +18,7 @@ export interface Section {
   name: string;
   bars: number;
   tracks: Track[];
-  /** Library reference ("breaks/bossa-1" or "breaks/bossa-1#short"); tracks are filled in from it. */
-  link?: string;
-  /** Own time signature; unset = the song's. Linked sections always carry their file's. */
+  /** Own time signature; unset = the song's. */
   beats?: number;
   subdiv?: number;
 }
@@ -100,18 +98,10 @@ interface RawSection {
   beats?: number;
   subdiv?: number;
   tracks: (Track & { line: number })[];
-  link?: string;
   line: number;
 }
 
-export interface ParseOptions {
-  /** Returns the text of a library file ("grooves/samba-reggae"), or null if there is none. */
-  resolve?: (path: string) => string | null;
-  /** Library paths currently being expanded, to catch circular references. */
-  stack?: string[];
-}
-
-export function parse(text: string, opts: ParseOptions = {}): { song: Song; issues: ParseIssue[] } {
+export function parse(text: string): { song: Song; issues: ParseIssue[] } {
   const issues: ParseIssue[] = [];
   const song: Song = { title: 'Untitled', tempo: 100, swing: 0, beats: 4, subdiv: 4, sections: [], arrangement: [] };
   const raw: RawSection[] = [];
@@ -132,7 +122,8 @@ export function parse(text: string, opts: ParseOptions = {}): { song: Song; issu
       current = { name, bars: null, tracks: [], line: lineNo };
       raw.push(current);
       if (link) {
-        current.link = link[1].trim();
+        // Sections used to be able to point at a library file. Patterns are now imported (copied) instead.
+        issues.push({ line: lineNo, message: msg('parse.linkRemoved', { name, ref: link[1].trim() }) });
         return;
       }
       for (const m of header[2].matchAll(/(\w+)\s*=\s*(\S+)/g)) {
@@ -199,10 +190,6 @@ export function parse(text: string, opts: ParseOptions = {}): { song: Song; issu
       raw.push(current);
     }
     const sec: RawSection = current;
-    if (sec.link) {
-      issues.push({ line: lineNo, message: msg('parse.linkedLines', { name: sec.name, ref: sec.link }) });
-      return;
-    }
     if (sec.tracks.some((t) => t.label === key)) {
       issues.push({ line: lineNo, message: msg('parse.labelTwice', { label: key, name: sec.name }) });
       return;
@@ -241,10 +228,6 @@ export function parse(text: string, opts: ParseOptions = {}): { song: Song; issu
   });
 
   for (const r of raw) {
-    if (r.link) {
-      song.sections.push(resolveLink(r, opts, issues));
-      continue;
-    }
     // A section that sets either value has its own time signature (the other comes from the song).
     const own = r.beats !== undefined || r.subdiv !== undefined;
     const meter: Partial<Meter> = own ? { beats: r.beats ?? song.beats, subdiv: r.subdiv ?? song.subdiv } : {};
@@ -303,45 +286,6 @@ export function parse(text: string, opts: ParseOptions = {}): { song: Song; issu
   return { song, issues };
 }
 
-function resolveLink(r: RawSection, opts: ParseOptions, issues: ParseIssue[]): Section {
-  const ref = r.link!;
-  const empty: Section = { name: r.name, bars: 1, tracks: [], link: ref };
-  const hash = ref.indexOf('#');
-  const path = (hash < 0 ? ref : ref.slice(0, hash)).trim();
-  const want = hash < 0 ? null : ref.slice(hash + 1).trim();
-  const fail = (message: string) => {
-    issues.push({ line: r.line, message });
-    return empty;
-  };
-
-  const stack = opts.stack ?? [];
-  if (stack.includes(path)) return fail(msg('parse.cycle', { path, chain: [...stack, path].join(' → ') }));
-  const src = opts.resolve?.(path);
-  if (src == null) return fail(msg('parse.fileNotFound', { path }));
-
-  const sub = parse(src, { ...opts, stack: [...stack, path] });
-  if (sub.issues.length) {
-    const more = sub.issues.length > 1 ? msg('parse.more', { n: sub.issues.length - 1 }) : '';
-    issues.push({ line: r.line, message: msg('parse.inFile', { path, message: sub.issues[0].message }) + more });
-  }
-  const secs = sub.song.sections;
-  let picked: Section | undefined;
-  if (want) {
-    picked = secs.find((s) => s.name === want);
-    if (!picked) return fail(msg('parse.noSuchSection', { path, name: want, list: secs.map((s) => s.name).join(', ') || msg('parse.none') }));
-  } else {
-    picked = secs[0];
-    if (!picked) return fail(msg('parse.noSections', { path }));
-    if (secs.length > 1)
-      issues.push({
-        line: r.line,
-        message: msg('parse.manySections', { path, n: secs.length, name: picked.name }),
-      });
-  }
-  // The section keeps its file's time signature, whatever the song's.
-  return { name: r.name, bars: picked.bars, ...meterOf(sub.song, picked), tracks: structuredClone(picked.tracks), link: ref };
-}
-
 export function formatRepeat(r: number): string {
   return r === Infinity ? 'loop' : String(r);
 }
@@ -359,20 +303,12 @@ export function formatSteps(m: Meter, steps: string[]): string {
   return out;
 }
 
-/**
- * @param inline write linked sections out in full, so the text works without the library
- *               (used for share links).
- */
-export function serialize(song: Song, { inline = false } = {}): string {
+export function serialize(song: Song): string {
   const lines: string[] = [`title: ${song.title}`, `tempo: ${song.tempo}`, `swing: ${song.swing}`];
   if (song.beats !== 4) lines.push(`beats: ${song.beats}`);
   if (song.subdiv !== 4) lines.push(`subdiv: ${song.subdiv}`);
 
   for (const sec of song.sections) {
-    if (sec.link && !inline) {
-      lines.push('', `[${sec.name}] = ${sec.link}`);
-      continue;
-    }
     const m = meterOf(song, sec);
     let head = `[${sec.name}] bars=${sec.bars}`;
     if (m.beats !== song.beats) head += ` beats=${m.beats}`;
@@ -404,6 +340,91 @@ export function resizeSection(song: Song, sec: Section, bars: number) {
     t.steps = t.steps.slice(0, len);
     while (t.steps.length < len) t.steps.push(REST);
   }
+}
+
+/**
+ * Copy sections of another file (a pattern or a song) into `song`, keeping only the given
+ * instruments. Each copy keeps the file's time signature and gets a free name: a file with a single
+ * section names it after the file (`baseName`). Sections left with no line are skipped.
+ * The copies are independent: later changes to the file don't affect them.
+ * @returns how many sections were added.
+ */
+export function importSections(
+  song: Song,
+  source: Song,
+  names: string[],
+  instruments: InstrumentId[],
+  baseName: string,
+): number {
+  let n = 0;
+  for (const sec of source.sections) {
+    if (!names.includes(sec.name)) continue;
+    const tracks = sec.tracks.filter((tr) => instruments.includes(tr.instrument));
+    if (!tracks.length) continue;
+    song.sections.push({
+      name: uniqueName(
+        song.sections.map((x) => x.name),
+        source.sections.length > 1 ? sec.name : baseName,
+      ),
+      bars: sec.bars,
+      ...meterOf(source, sec),
+      tracks: structuredClone(tracks),
+    });
+    n++;
+  }
+  return n;
+}
+
+/**
+ * Where imported lines go in `sec`: for each source line, the line it replaces (same label, else the
+ * first not-yet-taken line of the same instrument), or null when it is added.
+ */
+export function importMatches(sec: Section, tracks: Track[]): (Track | null)[] {
+  const taken = new Set<Track>();
+  return tracks.map((src) => {
+    const t =
+      sec.tracks.find((x) => !taken.has(x) && x.label === src.label && x.instrument === src.instrument) ??
+      sec.tracks.find((x) => !taken.has(x) && x.instrument === src.instrument) ??
+      null;
+    if (t) taken.add(t);
+    return t;
+  });
+}
+
+/**
+ * Copy the lines of `from` (a section of `source`) for the given instruments into the existing section
+ * `sec`. Each line replaces the matching one (see importMatches) or is added; it keeps its steps per
+ * beat and is repeated beat by beat to fill the section, whatever their lengths.
+ * @returns the labels of the lines replaced and added.
+ */
+export function importIntoSection(
+  song: Song,
+  sec: Section,
+  source: Song,
+  from: Section,
+  instruments: InstrumentId[],
+): { replaced: string[]; added: string[] } {
+  const m = meterOf(song, sec);
+  const srcMeter = meterOf(source, from);
+  const tracks = from.tracks.filter((tr) => instruments.includes(tr.instrument));
+  const matches = importMatches(sec, tracks);
+  const out = { replaced: [] as string[], added: [] as string[] };
+  tracks.forEach((src, i) => {
+    const subdiv = trackMeter(srcMeter, src).subdiv;
+    const len = sec.bars * m.beats * subdiv;
+    const steps = Array.from({ length: len }, (_, j) => src.steps[j % src.steps.length] ?? REST);
+    let t = matches[i];
+    if (t) out.replaced.push(t.label);
+    else {
+      t = { label: uniqueName(sec.tracks.map((x) => x.label), src.label), instrument: src.instrument, steps: [] };
+      sec.tracks.push(t);
+      out.added.push(t.label);
+    }
+    t.steps = steps;
+    if (subdiv === m.subdiv) delete t.subdiv;
+    else t.subdiv = subdiv;
+  });
+  return out;
 }
 
 /** Steps of one line in bar `bar` (0-based): [start, end). */
@@ -485,7 +506,7 @@ function convertSection(sec: Section, from: Meter, to: Meter): number {
 
 /**
  * Change the song's time signature. Sections that follow it are converted; sections with their own
- * (including linked ones) keep theirs.
+ * keep theirs.
  * @returns how many notes were dropped.
  */
 export function changeMeter(song: Song, beats: number, subdiv: number): number {
@@ -572,13 +593,13 @@ export function moveTrack(sec: Section, from: number, to: number) {
 }
 
 /**
- * Reorder the tracks of every other (non-linked) section to follow `source`'s order.
+ * Reorder the tracks of every other section to follow `source`'s order.
  * Lines that `source` doesn't have keep their relative order and go after the others.
  */
 export function applyTrackOrder(song: Song, source: Section) {
   const rank = new Map(source.tracks.map((t, i) => [t.label, i]));
   for (const sec of song.sections) {
-    if (sec === source || sec.link) continue;
+    if (sec === source) continue;
     sec.tracks = sec.tracks
       .map((t, i) => ({ t, k: rank.get(t.label) ?? rank.size + i }))
       .sort((a, b) => a.k - b.k)

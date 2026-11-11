@@ -1,0 +1,13 @@
+title: Ternary
+tempo: 100
+swing: 0
+beats: 2
+subdiv: 3
+
+[groove] bars=2
+fundo1: x.. ... | x.. ...
+fundo2: ... x.. | ... x..
+caixa:  Xxx Xxx | Xxx Xxx
+repi:   Xxx Xxx | Xxx Xxx
+
+arrangement: groove*loop

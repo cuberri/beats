@@ -4,8 +4,10 @@
 
   interface Props {
     heading: string;
-    /** Existing library folders, offered as suggestions. */
-    folders: string[];
+    /** Library folder the file goes into. */
+    root: 'songs' | 'patterns';
+    /** Existing subfolders, offered as suggestions; null hides the folder field. */
+    folders: string[] | null;
     defaultFolder: string;
     defaultName: string;
     note?: string;
@@ -20,7 +22,8 @@
   let folder = $state(p.defaultFolder);
   // svelte-ignore state_referenced_locally
   let name = $state(p.defaultName);
-  const path = $derived(slugPath(folder, name));
+  /** Path inside the root folder. */
+  const path = $derived(slugPath(p.folders ? folder : '', name));
   const valid = $derived(path.length > 0 && !path.endsWith('/') && slugPath('', name).length > 0);
 
   $effect(() => {
@@ -30,7 +33,7 @@
   function submit(e: SubmitEvent) {
     e.preventDefault();
     if (!valid) return;
-    p.onSave(path);
+    p.onSave(`${p.root}/${path}`);
     dialog.close();
   }
 </script>
@@ -40,19 +43,21 @@
     <h2>{p.heading}</h2>
     {#if p.note}<p class="note">{p.note}</p>{/if}
 
-    <label>
-      {t('save.folder')}
-      <input bind:value={folder} list="lib-folders" placeholder={t('save.topLevelPh')} autocomplete="off" />
-      <datalist id="lib-folders">
-        {#each p.folders as f (f)}<option value={f}></option>{/each}
-      </datalist>
-    </label>
-    <div class="chips">
-      <button type="button" class="chip" class:sel={folder === ''} onclick={() => (folder = '')}>{t('save.topLevel')}</button>
-      {#each p.folders as f (f)}
-        <button type="button" class="chip" class:sel={folder === f} onclick={() => (folder = f)}>{f}</button>
-      {/each}
-    </div>
+    {#if p.folders}
+      <label>
+        {t('save.folder')}
+        <input bind:value={folder} list="lib-folders" placeholder={t('save.topLevelPh')} autocomplete="off" />
+        <datalist id="lib-folders">
+          {#each p.folders as f (f)}<option value={f}></option>{/each}
+        </datalist>
+      </label>
+      <div class="chips">
+        <button type="button" class="chip" class:sel={folder === ''} onclick={() => (folder = '')}>{t('save.topLevel')}</button>
+        {#each p.folders as f (f)}
+          <button type="button" class="chip" class:sel={folder === f} onclick={() => (folder = f)}>{f}</button>
+        {/each}
+      </div>
+    {/if}
 
     <label>
       {t('save.name')}
@@ -60,7 +65,7 @@
       <input bind:value={name} required autofocus autocomplete="off" />
     </label>
 
-    <p class="path">songs/<b>{valid ? path : '…'}</b>.txt</p>
+    <p class="path">{p.root}/<b>{valid ? path : '…'}</b>.txt</p>
 
     <div class="buttons">
       <button type="button" onclick={() => dialog.close()}>{t('cancel')}</button>

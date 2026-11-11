@@ -36,8 +36,8 @@ Works the same on macOS and Windows (use Terminal on a Mac, PowerShell or Comman
 4. Open <http://localhost:5173> in a browser. Leave the terminal open while you use the app; press `Ctrl+C` in it
    to stop the server.
 
-While this server runs, the app can save straight into the `songs/` folder (💾 Save, Save to library, editing linked
-sections), and files you add or change in `songs/` show up in the app right away.
+While this server runs, the app can save straight into the `songs/` and `patterns/` folders (💾 Save, Save as
+pattern), and files you add or change there show up in the app right away.
 
 **From a phone or another computer on the same Wi-Fi:** start the server with `npm run dev -- --host`. It prints a
 `Network:` address (like `http://192.168.1.20:5173`) to open on the other device.
@@ -57,14 +57,14 @@ npm run build    # static site in dist/
 npm run preview  # serve dist/ on http://localhost:4173 to try the built site
 ```
 
-The built site (`npm run preview` or a deployed copy) cannot write into `songs/`: its save buttons download the file
-instead.
+The built site (`npm run preview` or a deployed copy) cannot write into `songs/` or `patterns/`: its save buttons
+download the file instead.
 
 ## Deploy
 
 Pushing to `main` builds and publishes the site on GitHub Pages (`.github/workflows/deploy.yml`, which also runs
 the tests first). One-time setup on GitHub: **Settings → Pages → Source: GitHub Actions**, then add the custom domain
-on the same page. Only songs committed to `songs/` end up in the published library.
+on the same page. Only files committed to `songs/` and `patterns/` end up in the published library.
 
 `dist/` is a static site with relative paths, so it can also go on Netlify or Cloudflare Pages.
 It is an installable PWA (works offline after first visit).
@@ -77,12 +77,15 @@ It is an installable PWA (works offline after first visit).
   flags a missing French one). The song file format stays in English.
 - `src/lib/synth.ts`: synthesized sounds (Web Audio).
 - `src/lib/player.ts`: lookahead scheduler, arrangement/loop playback, bar-quantized jumps.
-- `src/lib/library.svelte.ts`: bundles every `songs/**/*.txt` (live-updated in dev).
-- `src/lib/libraryWrite.ts` + the `songs-writer` plugin in `vite.config.ts`: saving into `songs/` (dev server only;
-  the deployed site downloads files instead).
+- `src/lib/library.svelte.ts`: bundles every `songs/**/*.txt` and `patterns/**/*.txt` (live-updated in dev).
+- `src/lib/libraryWrite.ts` + the `songs-writer` plugin in `vite.config.ts`: saving into `songs/` and `patterns/`
+  (dev server only; the deployed site downloads files instead).
 - `src/components/`: grid, transport, arrangement editor, library, save dialog, help.
 
 ## Song library
 
-Put `.txt` songs in `songs/`; subfolders become groups. A section can link to a library file with
-`[groove] = grooves/samba-basic`. See [songs/README.md](songs/README.md).
+- `songs/`: whole songs. Subfolders (e.g. `drafts/`, `currently-played/`) only organise them in the Library.
+- `patterns/`: reusable grooves and breaks. The app's **Import…** copies their sections (or only some instruments)
+  into a song; the copy is then independent of the file.
+
+See [songs/README.md](songs/README.md) and [patterns/README.md](patterns/README.md).

@@ -1,23 +1,31 @@
 <script lang="ts">
   import { t } from '../lib/i18n.svelte';
-  import type { LibEntry } from '../lib/library.svelte';
+  import { LIB_KINDS, type LibEntry, type LibKind } from '../lib/library.svelte';
 
   interface Props {
+    /** Tab shown first. */
+    initialKind: LibKind;
     entries: LibEntry[];
     currentPath: string | null;
     onOpen: (path: string) => void;
-    onAdd: (path: string) => void;
+    /** Pick sections of this file to copy into the current song. */
+    onImport: (path: string) => void;
     onClose: () => void;
+    /** Importing lines into this section: only Import is offered. */
+    targetName?: string;
   }
   let p: Props = $props();
 
   let dialog: HTMLDialogElement;
   let filter = $state('');
+  // svelte-ignore state_referenced_locally
+  let kind = $state<LibKind>(p.initialKind);
 
+  const shown = $derived(p.entries.filter((e) => e.kind === kind));
   const groups = $derived.by(() => {
     const f = filter.trim().toLowerCase();
     const map = new Map<string, LibEntry[]>();
-    for (const e of p.entries) {
+    for (const e of shown) {
       if (f && !e.title.toLowerCase().includes(f) && !e.path.toLowerCase().includes(f)) continue;
       if (!map.has(e.group)) map.set(e.group, []);
       map.get(e.group)!.push(e);
@@ -36,17 +44,29 @@
       <h2>{t('lib.title')}</h2>
       <button class="ghost" onclick={() => dialog.close()} aria-label={t('close')}>✕</button>
     </header>
-    <p class="hint">{@html t('lib.hint')}</p>
-    {#if p.entries.length > 6}
+    <nav class="kinds" aria-label={t('lib.title')}>
+      {#each LIB_KINDS as k (k)}
+        <button class:sel={kind === k} aria-pressed={kind === k} onclick={() => (kind = k)}
+          >{t(k === 'songs' ? 'lib.songs' : 'lib.patterns')}
+          <span class="count">{p.entries.filter((e) => e.kind === k).length}</span></button
+        >
+      {/each}
+    </nav>
+    {#if p.targetName}
+      <p class="hint">{t('lib.into', { name: p.targetName })}</p>
+    {:else}
+      <p class="hint">{@html t(kind === 'songs' ? 'lib.hintSongs' : 'lib.hintPatterns')}</p>
+    {/if}
+    {#if shown.length > 6}
       <input class="filter" placeholder={t('lib.filter')} bind:value={filter} aria-label={t('lib.filterLabel')} />
     {/if}
 
-    {#if !p.entries.length}
-      <p class="empty">{@html t('lib.empty')}</p>
+    {#if !shown.length}
+      <p class="empty">{@html t(kind === 'songs' ? 'lib.emptySongs' : 'lib.emptyPatterns')}</p>
     {/if}
 
     {#each groups as [group, items] (group)}
-      <h3>{group || t('lib.songs')}</h3>
+      {#if group || groups.length > 1}<h3>{group || t('lib.topLevel')}</h3>{/if}
       <ul>
         {#each items as e (e.path)}
           <li class:current={e.path === p.currentPath}>
@@ -54,18 +74,20 @@
               <span class="t">{e.title}</span>
               <span class="path">{e.path}</span>
             </div>
-            <button
+            {#if !p.targetName}<button
               onclick={() => {
                 p.onOpen(e.path);
                 dialog.close();
-              }}>{t('lib.open')}</button
-            >
+              }}
+              title={t('lib.openTip')}>{t('lib.open')}</button
+            >{/if}
             <button
+              class:primary={kind === 'patterns' || !!p.targetName}
               onclick={() => {
-                p.onAdd(e.path);
+                p.onImport(e.path);
                 dialog.close();
               }}
-              title={t('lib.addTip')}>{t('lib.add')}</button
+              title={t('lib.importTip')}>{t('lib.import')}</button
             >
           </li>
         {/each}
@@ -98,6 +120,21 @@
   h2 {
     margin: 0;
     font-size: 1.15rem;
+  }
+  .kinds {
+    display: flex;
+    gap: 4px;
+    margin: 8px 0 4px;
+  }
+  .kinds button.sel {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    font-weight: 600;
+  }
+  .count {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-left: 2px;
   }
   .hint {
     margin: 4px 0 10px;

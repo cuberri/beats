@@ -49,6 +49,8 @@ export function loadInitial(): Loaded {
   } catch {
     /* ignore */
   }
+  // Library paths used to leave out the songs/ folder ("tamanquinho" for songs/tamanquinho.txt).
+  if (origin && !/^(songs|patterns)\//.test(origin.path)) origin = { ...origin, path: `songs/${origin.path}` };
 
   const m = location.hash.match(/^#s=(.+)$/);
   if (m) {
