@@ -62,6 +62,9 @@
       lecture termine le tour en cours puis s’arrête.
     </li>
     <li>
+      Pendant la lecture, une section plus large que l’écran défile toute seule pour garder le temps joué visible.
+    </li>
+    <li>
       Le petit menu <b>÷4</b> à côté du nom d’un instrument règle le nombre de pas par temps de cette ligne. Choisissez
       <b>÷3</b> pour la jouer en triolets pendant que les autres lignes restent carrées : chaque temps garde la même
       largeur, on voit donc le 3 contre 4. Le premier choix suit la section. Le changer déplace les notes sur le pas
@@ -215,6 +218,7 @@ arrangement: call, groove*loop, break1, groove*4</pre>
       <b>🔁</b> next to it to repeat it until <b>■ Stop</b>; handy for practising one groove. Turning it off while
       playing finishes the current pass, then stops.
     </li>
+    <li>While playing, a section wider than the screen scrolls by itself to keep the beat playing in view.</li>
     <li>
       The small <b>÷4</b> menu next to an instrument name sets how many steps that line has per beat. Choose <b>÷3</b>
       to play it in triplets while the other lines stay square: every beat keeps the same width, so you see the 3

@@ -175,6 +175,28 @@
   }
 
   let cardEl: HTMLElement;
+  let scrollEl: HTMLElement;
+
+  /*
+   * Follow the playhead: when the beat playing is out of view (behind the sticky line names or past
+   * the right edge), scroll so its bar starts just after the names, or the beat itself when the bar
+   * is wider than the view. Only on a new beat, so scrolling by hand between beats is left alone.
+   */
+  $effect(() => {
+    const beat = nowBeat;
+    if (beat < 0 || !scrollEl) return;
+    const cell = scrollEl.querySelectorAll<HTMLElement>('.ruler')[beat];
+    const bar = scrollEl.querySelectorAll<HTMLElement>('.barhead')[Math.floor(beat / meter.beats)];
+    const name = scrollEl.querySelector<HTMLElement>('.label');
+    if (!cell || !bar) return;
+    const left = scrollEl.scrollLeft + (name?.offsetWidth ?? 0);
+    const right = scrollEl.scrollLeft + scrollEl.clientWidth;
+    const x = (el: HTMLElement) => el.offsetLeft; // .scroll is the offset parent (position: relative)
+    if (x(cell) >= left && x(cell) + cell.offsetWidth <= right) return;
+    const view = right - left;
+    const target = bar.offsetWidth <= view ? x(bar) : x(cell);
+    scrollEl.scrollTo({ left: target - (name?.offsetWidth ?? 0) - 3, behavior: 'smooth' });
+  });
 
   async function gripKey(e: KeyboardEvent, ti: number) {
     const d = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
@@ -344,7 +366,7 @@
     >
   </header>
 
-  <div class="scroll">
+  <div class="scroll" bind:this={scrollEl}>
     <div class="grid" style="grid-template-columns: {template}; --k: {finest / res}">
       <div class="label ruler-label" aria-hidden="true"></div>
       {#each barList as bar (bar)}
@@ -618,6 +640,7 @@
   }
 
   .scroll {
+    position: relative;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     padding-bottom: 4px;
