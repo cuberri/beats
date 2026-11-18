@@ -1,21 +1,52 @@
 import type { InstrumentId, StrokeDef } from './instruments';
 
+/** Click volume when the app starts (0..1). */
+export const DEFAULT_CLICK_VOLUME = 0.6;
+/** Output gain of the click at full volume. */
+const CLICK_GAIN = 0.8;
+
+/** A compressor set up as a limiter: hardly anything gets above `dB` (dBFS). */
+function limiter(ctx: BaseAudioContext, dB: number): DynamicsCompressorNode {
+  const l = ctx.createDynamicsCompressor();
+  l.threshold.value = dB;
+  l.knee.value = 0;
+  l.ratio.value = 20;
+  l.attack.value = 0.001;
+  l.release.value = 0.1;
+  return l;
+}
+
 /**
  * Every sound is generated on the fly from oscillators and a white-noise buffer.
  * Nothing realistic: just enough character to tell the instruments apart.
  */
 export class Synth {
   readonly out: GainNode;
+  /** The metronome's own output. It skips the compressor, so loud drums can't push it down. */
+  private clickOut: GainNode;
   private noiseBuf: AudioBuffer;
 
   constructor(private ctx: AudioContext) {
+    /*
+     * drums → compressor → limiter ─┐
+     *                    click ─────┴→ master limiter → speakers
+     * The drums' limiter keeps them below the top, leaving room for the click; the master limiter
+     * catches what's left, so nothing ever clips.
+     */
+    const master = limiter(ctx, -1);
+    master.connect(ctx.destination);
+    const drumLimit = limiter(ctx, -4);
+    drumLimit.connect(master);
     const comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -14;
     comp.ratio.value = 4;
-    comp.connect(ctx.destination);
+    comp.connect(drumLimit);
     this.out = ctx.createGain();
     this.out.gain.value = 0.8;
     this.out.connect(comp);
+    this.clickOut = ctx.createGain();
+    this.clickOut.gain.value = CLICK_GAIN * DEFAULT_CLICK_VOLUME;
+    this.clickOut.connect(master);
 
     const len = ctx.sampleRate;
     this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -23,25 +54,34 @@ export class Synth {
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
   }
 
-  private env(t: number, peak: number, attack: number, decay: number): GainNode {
+  private env(t: number, peak: number, attack: number, decay: number, dest: AudioNode = this.out): GainNode {
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(peak, t + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t + attack + decay);
-    g.connect(this.out);
+    g.connect(dest);
     return g;
   }
 
   private tone(
     t: number,
-    o: { type?: OscillatorType; f0: number; f1?: number; glide?: number; gain: number; decay: number; attack?: number },
+    o: {
+      type?: OscillatorType;
+      f0: number;
+      f1?: number;
+      glide?: number;
+      gain: number;
+      decay: number;
+      attack?: number;
+      dest?: AudioNode;
+    },
   ) {
     const osc = this.ctx.createOscillator();
     osc.type = o.type ?? 'sine';
     osc.frequency.setValueAtTime(o.f0, t);
     if (o.f1) osc.frequency.exponentialRampToValueAtTime(o.f1, t + (o.glide ?? 0.05));
     const attack = o.attack ?? 0.002;
-    osc.connect(this.env(t, o.gain, attack, o.decay));
+    osc.connect(this.env(t, o.gain, attack, o.decay, o.dest));
     osc.start(t);
     osc.stop(t + attack + o.decay + 0.05);
   }
@@ -105,7 +145,19 @@ export class Synth {
     }
   }
 
+  /** Click loudness, 0 (silent) to 1 (loudest). */
+  setClickVolume(v: number) {
+    this.clickOut.gain.setTargetAtTime(CLICK_GAIN * Math.max(0, Math.min(1, v)), this.ctx.currentTime, 0.02);
+  }
+
+  /**
+   * A high, pitched "tock", well above the drums (the caixa and repi are mostly noise) so it stands
+   * out of the mix. The first beat of the bar is higher and louder.
+   */
   click(t: number, downbeat: boolean) {
-    this.tone(t, { type: 'square', f0: downbeat ? 1800 : 1200, gain: 0.12, decay: 0.03 });
+    const f = downbeat ? 2600 : 2000;
+    const dest = this.clickOut;
+    this.tone(t, { f0: f, gain: downbeat ? 1 : 0.75, decay: 0.06, dest });
+    this.tone(t, { type: 'square', f0: f / 2, gain: downbeat ? 0.3 : 0.22, decay: 0.012, dest });
   }
 }

@@ -14,6 +14,7 @@
   import type { InstrumentId } from './lib/instruments';
   import { LANGS, i18n, setLang, t, type Lang } from './lib/i18n.svelte';
   import { Player, type PlayerState } from './lib/player';
+  import { DEFAULT_CLICK_VOLUME } from './lib/synth';
   import { computeProgress } from './lib/progress';
   import {
     REST,
@@ -110,6 +111,24 @@
   let muted = $state<string[]>([]);
   let soloed = $state<string[]>([]);
   let click = $state(false);
+  let clickVolume = $state(loadClickVolume());
+  /** The click volume is remembered on this device. */
+  function loadClickVolume(): number {
+    try {
+      const v = Number(localStorage.getItem('beats.clickVolume'));
+      if (localStorage.getItem('beats.clickVolume') !== null && v >= 0 && v <= 1) return v;
+    } catch {
+      // storage blocked: use the default
+    }
+    return DEFAULT_CLICK_VOLUME;
+  }
+  $effect(() => {
+    try {
+      localStorage.setItem('beats.clickVolume', String(clickVolume));
+    } catch {
+      // not remembered, that's all
+    }
+  });
   let toast = $state('');
   let ps = $state<PlayerState>({
     playing: false,
@@ -145,6 +164,7 @@
     player.muted = new Set(muted);
     player.soloed = new Set(soloed);
     player.click = click;
+    player.clickVolume = clickVolume;
   });
 
   /** Change one section. */
@@ -587,6 +607,7 @@
     {ps}
     {progress}
     {click}
+    {clickVolume}
     onPlay={() => player.playSong()}
     onStop={() => player.stop()}
     onNext={() => player.next()}
@@ -596,6 +617,7 @@
     onSwing={(v) => edit((s) => (s.swing = v))}
     onMeter={setMeter}
     onClick={(on) => (click = on)}
+    onClickVolume={(v) => (clickVolume = v)}
   />
 
   {#if showLibrary}

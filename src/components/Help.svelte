@@ -78,6 +78,7 @@
     <li>Les parties marquées ∞ tournent en boucle jusqu’à ce que vous appuyiez sur <b>Suivant</b> ou touchiez une autre partie.</li>
     <li>La rangée <b>Boucle</b> joue une seule section en boucle ; en toucher une autre bascule à la prochaine barre de mesure.</li>
     <li>La barre d’espace lance et arrête la lecture (quand vous n’êtes pas en train d’écrire).</li>
+    <li><b>clic</b> ajoute un clic de métronome sur chaque temps, plus aigu sur le premier temps de la mesure. Le curseur à côté règle son volume.</li>
     <li>
       Le menu de mesure à côté du tempo règle celle du morceau : 4/4, 2/4, 3/4 ou les mesures ternaires 6/8 et 12/8.
       Chaque section a aussi son propre menu : un break peut passer en ternaire dans un morceau en 4/4 (« Morceau »
@@ -232,6 +233,7 @@ arrangement: call, groove*loop, break1, groove*4</pre>
     <li>Parts marked ∞ loop until you press <b>Next</b> or tap another part.</li>
     <li>The <b>Loop</b> row loops a single section; tapping another switches at the next bar line.</li>
     <li>Space bar starts and stops (when not typing).</li>
+    <li><b>click</b> adds a metronome click on every beat, higher on the first beat of the bar. The slider next to it sets its volume.</li>
     <li>
       The time signature menu next to the tempo sets the song's: 4/4, 2/4, 3/4 or the ternary 6/8 and 12/8. Each
       section also has its own menu, so a break can go ternary inside a 4/4 song (“Song” follows the song's). The beat

@@ -1,6 +1,6 @@
 import { INSTRUMENT_BY_ID, findStroke, type InstrumentId } from './instruments';
 import { REST, meterOf, ticksPerBeat, type ArrItem, type Song } from './song';
-import { Synth } from './synth';
+import { DEFAULT_CLICK_VOLUME, Synth } from './synth';
 
 export interface PlayerState {
   playing: boolean;
@@ -68,6 +68,15 @@ export class Player {
   muted = new Set<string>();
   soloed = new Set<string>();
   click = false;
+  private _clickVolume = DEFAULT_CLICK_VOLUME;
+  /** Click loudness, 0..1. */
+  get clickVolume() {
+    return this._clickVolume;
+  }
+  set clickVolume(v: number) {
+    this._clickVolume = v;
+    this.synth?.setClickVolume(v);
+  }
 
   constructor(
     song: Song,
@@ -92,6 +101,7 @@ export class Player {
       if (nav.audioSession) nav.audioSession.type = 'playback';
       this.ctx = new AudioContext({ latencyHint: 'interactive' });
       this.synth = new Synth(this.ctx);
+      this.synth.setClickVolume(this._clickVolume);
     }
     if (this.ctx.state !== 'running') await this.ctx.resume();
     return this.ctx;

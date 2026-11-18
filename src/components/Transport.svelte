@@ -9,6 +9,8 @@
     ps: PlayerState;
     progress: Progress | null;
     click: boolean;
+    /** 0..1 */
+    clickVolume: number;
     onPlay: () => void;
     onStop: () => void;
     onNext: () => void;
@@ -18,6 +20,7 @@
     onSwing: (swing: number) => void;
     onMeter: (beats: number, subdiv: number) => void;
     onClick: (on: boolean) => void;
+    onClickVolume: (v: number) => void;
   }
   let p: Props = $props();
 
@@ -107,6 +110,16 @@
       <input type="checkbox" checked={p.click} onchange={(e) => p.onClick(e.currentTarget.checked)} />
       {t('tr.click')}
     </label>
+    <input
+      class="clk-vol"
+      type="range"
+      min="0"
+      max="100"
+      value={Math.round(p.clickVolume * 100)}
+      oninput={(e) => p.onClickVolume(Number(e.currentTarget.value) / 100)}
+      title={t('tr.clickVolume', { n: Math.round(p.clickVolume * 100) })}
+      aria-label={t('tr.clickVolumeLabel')}
+    />
 
   </div>
 
@@ -206,6 +219,11 @@
   }
   .meter select {
     padding: 4px 6px;
+  }
+  .clk-vol {
+    width: 70px;
+    margin-left: -4px;
+    accent-color: var(--accent);
   }
   .swing input {
     width: 90px;
